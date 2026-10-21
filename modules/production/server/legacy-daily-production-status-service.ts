@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import { createAuditLog, type AuditContext } from '@/lib/audit'
 import { prisma } from '@/lib/prisma'
-import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/modules/inventory'
+import { getPackedInventoryQuantity, changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/modules/inventory'
 import {
   consumeAvailableInventoryLotsForReference,
   createInventoryLotReceipt,
@@ -269,6 +269,7 @@ async function reverseLegacyOutputLine(
     where: { sourceType, sourceId },
     include: { balances: true, inspections: true },
   })
+  if (outputLot && await getPackedInventoryQuantity(tx, { inventoryLotId: outputLot.id, inventoryStatus: 'ANY' }) > tolerance) throw new LegacyDailyProductionError('产出批次已有装箱货物，请先作废相关装箱记录再冲销')
   const positiveLotBalances = outputLot?.balances.filter((balance) => Number(balance.stockQty) > tolerance) || []
   const lotBalance = positiveLotBalances[0]
   const inventoryStatus = lotBalance?.inventoryStatus

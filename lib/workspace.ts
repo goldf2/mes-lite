@@ -27,6 +27,7 @@ export const workspaceFunctionKeys = [
   'shipment',
   'return',
   'stocks',
+  'warehousePackages',
   'warehouseDigitalTwin',
   'inventoryCount',
   'stockMovements',

@@ -4,6 +4,8 @@ import dynamic from 'next/dynamic'
 import type { ReactNode } from 'react'
 import type { CurrentOperator } from '../AuthGate'
 import AppLoadingIndicator from '../AppLoadingIndicator'
+import { AttachmentPanel } from '@/modules/attachments'
+import { DocumentQrLabelDialog } from '@/modules/operations-tools'
 import { AllFunctionsPage, type WorkspaceFunctionItem } from '@/modules/workspace'
 import type { ApplicationTab, PageModuleDefinition, PageRendererKey } from '@/lib/page-registry'
 import type { WorkspaceFunctionKey, WorkspacePreferenceValue } from '@/lib/workspace'
@@ -43,6 +45,7 @@ const DailyProductionPage = dynamic(() => import('@/modules/production').then((m
 const DailyInventoryCountPage = dynamic(() => import('@/modules/inventory').then((module) => module.DailyInventoryCountPage), { loading: FeaturePageLoading })
 const StockMovementPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.StockMovementPageModule), { loading: FeaturePageLoading })
 const InventoryLotPanoramaPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.InventoryLotPanoramaPageModule), { loading: FeaturePageLoading })
+const WarehousePackagePageModule = dynamic(() => import('@/modules/inventory').then((module) => module.WarehousePackagePageModule), { loading: FeaturePageLoading })
 const WarehouseDigitalTwinPageModule = dynamic(() => import('@/modules/inventory').then((module) => module.WarehouseDigitalTwinPageModule), { loading: FeaturePageLoading })
 const QualityTaskPageModule = dynamic(() => import('@/modules/quality').then((module) => module.QualityTaskPageModule), { loading: FeaturePageLoading })
 const SopHelpCenterPage = dynamic(() => import('@/modules/sop').then((module) => module.SopHelpCenterPage), { loading: FeaturePageLoading })
@@ -154,6 +157,7 @@ const pageRendererRegistry: Record<PageRendererKey, PageRenderer> = {
       onStateSummaryChange={context.onStockStateSummaryChange}
     />
   ),
+  'warehouse-packages': (context) => <WarehousePackagePageModule canManage={context.canUpdate('stocks')} canPrint={context.canCreate('scanPrint')} canReadAttachments={context.canRead('attachments')} canManageAttachments={context.canUpdate('stocks') && context.canCreate('attachments')} renderLabelDialog={(request) => <DocumentQrLabelDialog referenceType="PACKAGE_DOCUMENT" referenceId={request.id} data={request.data} onClose={request.onClose} onMessage={request.onMessage} />} renderAttachments={(request) => <AttachmentPanel ownerType="PACKAGE_DOCUMENT" ownerId={request.id} title="装箱实物照片" variant="image" documentType="PACKING_PHOTO" layout="gallery" onMessage={context.onMessage} readOnly={request.readOnly} />} onMessage={context.onMessage} />,
   'warehouse-digital-twin': (context) => (
     <WarehouseDigitalTwinPageModule
       onMessage={context.onMessage}

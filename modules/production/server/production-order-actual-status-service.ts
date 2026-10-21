@@ -6,7 +6,7 @@ import {
   unrestrictedDataScope,
   type EffectiveDataScope,
 } from '@/modules/identity-access'
-import { changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/modules/inventory'
+import { getPackedInventoryQuantity, changeStockLocationBalance, postInventoryIssue, postInventoryReceipt } from '@/modules/inventory'
 import {
   allocateAvailableInventoryLots,
   createInventoryReversalMovement,
@@ -249,6 +249,7 @@ async function reverseProductionOutput(
   if (outputQty <= 0) return
   const stock = await tx.stock.findUnique({ where: { materialId: line.materialId } })
   if (!stock) throw new ProductionOrderDomainError(`产出 ${line.materialCode} 没有库存记录，无法冲销`)
+  if (line.inventoryLot && await getPackedInventoryQuantity(tx, { inventoryLotId: line.inventoryLot.id, inventoryStatus: 'ANY' }) > tolerance) throw new ProductionOrderDomainError('产出批次已有装箱货物，请先作废相关装箱记录再冲销')
   const positiveLotBalances = line.inventoryLot?.balances.filter((balance) => Number(balance.stockQty) > tolerance) || []
   const lotBalance = positiveLotBalances[0]
   const inventoryStatus = lotBalance?.inventoryStatus

@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { getPackedInventoryQuantity } from './warehouse-package-stock-service'
 
 const tolerance = 0.000001
 const roundQty = (value: number) => Number(value.toFixed(6))
@@ -116,6 +117,7 @@ export async function settleShipmentStockShortagesWithLot(
   if (!lot || lot.status !== 'OPEN' || lot.balances.length === 0) return { settledStockQty: 0 }
   if (lot.balances.length !== 1) throw new Error(`批次 ${lot.lotNo} 没有唯一的可用库位余额，不能自动补欠库`)
   const balance = lot.balances[0]
+  const packedQty = await getPackedInventoryQuantity(tx, { inventoryLotId: lot.id, locationId: balance.locationId })
   const shortages = await tx.shipmentStockShortage.findMany({
     where: {
       materialId: lot.materialId,
@@ -133,10 +135,10 @@ export async function settleShipmentStockShortagesWithLot(
   let availableCostAmount = Number(balance.costAmount)
   let settledStockQty = 0
   for (const shortage of shortages) {
-    if (availableStockQty <= tolerance) break
+    if (availableStockQty - packedQty <= tolerance) break
     const outstanding = roundQty(Number(shortage.stockQty) - Number(shortage.settledStockQty))
     if (outstanding <= tolerance) continue
-    const stockQty = roundQty(Math.min(outstanding, availableStockQty))
+    const stockQty = roundQty(Math.min(outstanding, availableStockQty - packedQty))
     const ratio = availableStockQty > tolerance ? stockQty / availableStockQty : 0
     const fallbackValuationQty = stockQty >= availableStockQty - tolerance
       ? availableValuationQty

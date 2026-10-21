@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client'
 import { consumeMaterialCost, type CostLayerConsumptionInput } from '@/lib/costing'
 import { createInventoryReversalMovement } from '@/lib/inventory-ledger'
 import { normalizeConversionRate } from '@/lib/units'
+import { ensureLegacyAvailableLot } from './inventory-lot-issue-service'
+import { getPackedInventoryQuantity, planWarehouseIssueLots } from './warehouse-package-stock-service'
 
 export type ConversionSource =
   | 'MASTER_DEFAULT'
@@ -139,6 +141,8 @@ export async function changeStockLocationBalance(
     holdDelta?: number
     reworkDelta?: number
     allowNegativeStock?: boolean
+    packageDocumentIds?: string[]
+    warehouseIssuePlanApplied?: boolean
   },
 ) {
   const location = await resolveInventoryLocation(tx, input.locationId)
@@ -155,6 +159,13 @@ export async function changeStockLocationBalance(
   const quarantineQty = roundQty(Number(current.quarantineQty) + Number(input.quarantineDelta || 0))
   const holdQty = roundQty(Number(current.holdQty) + Number(input.holdDelta || 0))
   const reworkQty = roundQty(Number(current.reworkQty) + Number(input.reworkDelta || 0))
+  if (availableQty < Number(current.availableQty) - tolerance) {
+    const owner = await tx.stock.findUnique({ where: { id: input.stockId }, select: { materialId: true } })
+    if (owner?.materialId) {
+      const packedQty = await getPackedInventoryQuantity(tx, { materialId: owner.materialId, locationId: location.id, excludePackageDocumentIds: input.packageDocumentIds })
+      if (packedQty > tolerance && availableQty + tolerance < packedQty && !(input.allowNegativeStock && input.warehouseIssuePlanApplied)) throw new Error('本次操作会占用或扣减已装箱货物，请先选择货箱出库或作废相应装箱记录')
+    }
+  }
   const negativeQtyWorsened = qty < -tolerance && qty < Number(current.qty) - tolerance
   const negativeAvailableQtyWorsened = availableQty < -tolerance
     && availableQty < Number(current.availableQty) - tolerance
@@ -223,14 +234,14 @@ async function ensureFifoOpeningLayer(
   if (material.costingMethod !== 'FIFO' || stock.eligibleStockQty <= tolerance) return
   const aggregate = await tx.inventoryCostLayer.aggregate({
     where: { materialId: material.id, status: 'OPEN', inventoryStatus: 'AVAILABLE' },
-    _sum: { remainingStockQty: true },
+    _sum: { remainingStockQty: true, remainingValuationQty: true, remainingAmount: true },
   })
   const layeredQty = Number(aggregate._sum.remainingStockQty || 0)
   const missingQty = roundQty(stock.eligibleStockQty - layeredQty)
   if (missingQty <= tolerance) return
-  const averageRate = stock.eligibleStockQty > 0 ? stock.eligibleValuationQty / stock.eligibleStockQty : material.conversionRate
-  const valuationQty = roundQty(missingQty * averageRate)
-  const amount = roundQty(missingQty * (stock.eligibleStockQty > 0 ? stock.eligibleCostAmount / stock.eligibleStockQty : stock.stockUnitCost))
+  // An opening layer represents only the unlayered remainder, not a second average of known receipts.
+  const valuationQty = Math.max(0, roundQty(stock.eligibleValuationQty - Number(aggregate._sum.remainingValuationQty || 0)))
+  const amount = Math.max(0, roundQty(stock.eligibleCostAmount - Number(aggregate._sum.remainingAmount || 0)))
   await tx.inventoryCostLayer.create({
     data: {
       materialId: material.id,
@@ -246,6 +257,7 @@ async function ensureFifoOpeningLayer(
       totalAmount: amount,
       remainingAmount: amount,
       inventoryStatus: 'AVAILABLE',
+      createdAt: new Date(0),
     },
   })
 }
@@ -390,6 +402,7 @@ export async function postInventoryIssue(
     idempotencyKey?: string
     locationId?: string | null
     allowNegativeStock?: boolean
+    packageDocumentIds?: string[]
   },
 ) {
   if (input.idempotencyKey) {
@@ -406,19 +419,45 @@ export async function postInventoryIssue(
     update: {},
     create: { stockId: stock.id, locationId: location.id },
   })
+  const hasWarehousePackages = await tx.packageDocumentItem.findFirst({
+    where: { materialId: material.id, packageDocument: { is: { sourceType: 'WAREHOUSE', status: 'PACKED', deletedAt: null } } },
+    select: { id: true },
+  })
+  if (hasWarehousePackages || input.packageDocumentIds?.length) {
+    await ensureLegacyAvailableLot(tx, {
+      materialId: material.id, materialCode: material.code, locationId: location.id, locationCode: location.code,
+      stockQty: 0, issueValuationQty: 0, issueCostAmount: 0,
+    })
+  }
+  const packedQuantities = hasWarehousePackages || input.packageDocumentIds?.length ? await Promise.all([
+    getPackedInventoryQuantity(tx, { materialId: material.id }),
+    getPackedInventoryQuantity(tx, { materialId: material.id, locationId: location.id }),
+  ]) : [0, 0]
+  const lotPlan = hasWarehousePackages || input.packageDocumentIds?.length ? await planWarehouseIssueLots(tx, {
+    materialId: material.id, locationId: location.id, stockQty: issueQty,
+    packageDocumentIds: input.packageDocumentIds, shipmentId: input.refType === 'SHIPMENT' ? input.refId : undefined,
+    allowLooseShortage: input.allowNegativeStock === true && input.refType === 'SHIPMENT',
+    looseStockLimit: Math.max(0, Math.min(Number(stock.availableQty) - packedQuantities[0], Number(locationBalance.availableQty) - packedQuantities[1])),
+  }) : undefined
   if (!input.allowNegativeStock) {
     await assertInventoryIssueAvailability(tx, input)
   }
-  const allocatedStockQty = input.allowNegativeStock
+  const allocatedStockQty = lotPlan ? roundQty(lotPlan.reduce((sum, item) => sum + item.stockQty, 0)) : input.allowNegativeStock
     ? roundQty(Math.min(issueQty, Math.max(0, Number(stock.availableQty)), Math.max(0, Number(locationBalance.availableQty))))
     : issueQty
+  // Net stock includes shipment debts, while valuation still belongs to physical goods.
+  const outstanding = await tx.shipmentStockShortage.aggregate({
+    where: { materialId: material.id, status: 'OPEN' }, _sum: { stockQty: true, settledStockQty: true },
+  })
+  const debtQty = Math.max(0, roundQty(Number(outstanding?._sum.stockQty || 0) - Number(outstanding?._sum.settledStockQty || 0)))
+  const physicalEligibleQty = Math.max(0, roundQty(Number(stock.qty) + debtQty - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty)))
   await ensureFifoOpeningLayer(tx, material, {
     qty: Number(stock.qty),
     valuationQty: Number(stock.valuationQty),
     totalCost: Number(stock.totalCost),
     stockUnitCost: Number(stock.stockUnitCost),
     valuationUnitCost: Number(stock.valuationUnitCost),
-    eligibleStockQty: Math.max(0, roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty))),
+    eligibleStockQty: physicalEligibleQty,
     eligibleValuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)),
     eligibleCostAmount: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost)),
     valuationComplete: stock.valuationComplete,
@@ -426,10 +465,11 @@ export async function postInventoryIssue(
   const costResult = allocatedStockQty > tolerance ? await consumeMaterialCost(tx, {
     materialId: material.id,
     issueStockQty: allocatedStockQty,
+    lotAllocations: lotPlan,
     stock: {
       id: stock.id,
       valuationComplete: stock.valuationComplete,
-      qty: roundQty(Number(stock.qty) - Number(stock.quarantineQty) - Number(stock.holdQty) - Number(stock.reworkQty)),
+      qty: physicalEligibleQty,
       valuationQty: roundQty(Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty)),
       totalCost: roundQty(Number(stock.totalCost) - Number(stock.quarantineCost) - Number(stock.holdCost) - Number(stock.reworkCost)),
       valuationUnitCost: Number(stock.valuationQty) - Number(stock.quarantineValuationQty) - Number(stock.holdValuationQty) - Number(stock.reworkValuationQty) > tolerance
@@ -471,6 +511,8 @@ export async function postInventoryIssue(
     locationId: location.id,
     qtyDelta: -issueQty,
     allowNegativeStock: input.allowNegativeStock,
+    packageDocumentIds: input.packageDocumentIds,
+    warehouseIssuePlanApplied: lotPlan !== undefined,
   })
   const conversionSource: ConversionSource = !stock.valuationComplete ? 'UNMEASURED' : material.costingMethod === 'FIFO' ? 'FIFO_LAYER' : 'STOCK_AVERAGE'
   const movement = await tx.stockLog.create({

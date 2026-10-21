@@ -411,21 +411,49 @@ SKU，实际库存单位。
 
 可用入库增加总数量后，补账只从新批次、核算库存和库存金额中转出相应部分，不再次扣减总数量。这样负数量被本次入库自然抵消，同时客户批次和发货成本按真实后补批次补齐。有效负库存上限等于尚未补齐的发货欠库；预留、待检、冻结、返工和核算数量仍不得为负。
 
-### package_documents / package_document_items
+### 仓库装箱与选箱发货（v0.1.499 实施候选）
 
-货箱采用独立单头和内容物明细建模，每个货箱码对应一张系统货箱单据，而不是直接对应文件或库存余额。
+本节为 2026-10-21 候选 Schema 的字段约定；业务回归、精确提交 CI 和生产状态分别见正式版本说明，不能由字段存在推定已上线。容器无独立编号与生命周期，系统身份属于本次装箱内容。
 
 | 模型/字段 | 含义 |
 | --- | --- |
-| `PackageDocument.packageNo` | 唯一货箱号，格式 `BX-YYYYMMDD-###` |
-| `shipmentId` | 所属发货单；送货单据汇总展示其全部有效货箱 |
-| `status` | `PACKED / SHIPPED / DELIVERED / CANCELLED / REVERSED / ARCHIVED` |
-| `packedBy / packedAt` | 包装人员和包装时间 |
-| `grossWeight / netWeight / weightUnit` | 毛重、净重和重量单位快照 |
-| `lengthMm / widthMm / heightMm / sealNo` | 外箱尺寸和封签号 |
-| `PackageDocumentItem` | 物料、数量、单位和可选内部批次快照 |
+| `PackageDocument.packageNo` | 唯一货物装箱号 `BX-YYYYMMDD-###`，补打沿用原号 |
+| `shipmentId / sourceType` | `shipmentId` 改为可空；历史/发货现场箱为 `SHIPMENT`，独立仓库装箱为 `WAREHOUSE`，不必先建发货单 |
+| `packagingType` | 包装类型；纸箱、网箱、塑料周转盒等，不代表有状态容器资产 |
+| `status` | 仓库货物生命周期 `PACKED / SHIPPED / DELIVERED / VOIDED`，历史发货箱仍保留 `CANCELLED / REVERSED / ARCHIVED`；待发占用单独由分配关系表达，不把 `RESERVED` 混入容器状态 |
+| `contentVersion / revision` | 标签/分配绑定的装箱内容版本，以及并发修改版本 |
+| `packedBy / packedAt` | 包装人员及包装时间 |
+| `productionPersonnel / qualityPersonnel / productionDate / personnelSource` | 多人姓名 JSON 数组快照、生产日期及 `MANUAL / SOURCE / UNRECORDED` 来源标记；真实生产/检验记录可带出，也可人工补录，不等同质量放行 |
+| `grossWeight / netWeight / weightUnit` | 毛重、净重和单位快照 |
+| `lengthMm / widthMm / heightMm / sealNo` | 本次货物外形尺寸和可选封签 |
+| `clientRequestId` | 新建装箱请求幂等标识，数据库唯一 |
+| `PackageDocumentItem` | 物料、数量、单位及批号快照，关联真实 `InventoryLot`；仓库新箱必须有实际可用批次，历史未知批次不伪造 |
+| `PackageDocumentItem.shipmentItemId` | 可空兼容关系；新选箱通过独立来源/分配记录绑定发货明细 |
+| `PackageDocumentItem.inventoryStatus` | 装箱时的质量状态标识，确认发货仍复检实际批次状态 |
+| `ShipmentPackageAllocation` | 发货单与货箱关联，冻结 `contentVersion`，保存 `RESERVED` 等占用/释放/已发事实和责任时间 |
+| `ShipmentItemSource` | 发货产品行的箱内或散货来源，连接分配、箱内明细、实际批次、库位、数量和状态 |
+| `PackageLabelRevision` | 按货箱、内容版本和模板版本唯一保存 `payloadJson` 内容快照；打印请求仍由 `LabelPrintJob` 记录 |
 
-装箱现场和实物照片通过 `DocumentAttachment(ownerType=PACKAGE_DOCUMENT, ownerId=货箱ID)` 维护。没有货箱记录的历史或简化发货保持兼容；一旦开始装箱，确认发货要求有效货箱数量合计与发货数量一致。
+现场照片继续用 `DocumentAttachment(ownerType=PACKAGE_DOCUMENT)`。装箱不增加 `Stock`、`StockLocationBalance`、批次余额、成本层或库存流水；有效在库箱的分配量从未装箱实物可用量中扣除，防止重复装箱及被散货/生产/移库再次消耗。存在发货欠库时 `Stock.qty` 是净账，装箱不能仅按这个数推断实物；选箱部分必须真实足额，散货实际分配排除其他未选箱，散货差额继续按受控欠库处理，后补不重复扣箱。
+
+发货保留纯散货、纯货箱和混合。每个产品行满足“货箱数量 + 散货数量 = 实际发货数量”，不再要求有箱后必须覆盖整单；选中箱的实际批次是出库来源，不能换成其他 FIFO 批次。占用、出库、取消释放和冲销必须与原库存事务一致，散货原有受控欠库口径保持。
+
+### 仓库空间与货物摆放（v0.1.499 模型准备）
+
+本期创建空间模型及明确摆放关联，未开放三维编辑、布局发布或拖动移库界面。
+
+| 模型/字段 | 含义 |
+| --- | --- |
+| `Warehouse` | 仓库代码、名称、原点说明与启用状态；现有库位可选关联，不强迫历史库位立即迁入新布局 |
+| `WarehouseLayoutVersion` | 仓库内版本唯一；`DRAFT`、测量/发布时间为未来受控布局服务预留 |
+| `WarehouseSpatialNode` | 布局版本、稳定键、父子层级、类型、名称、相对父节点整数毫米 XYZ、长宽高、朝向和可选承重；可表示楼层/区域/货架/层/库位/墙柱/通道 |
+| `WarehouseSpatialNode.locationId` | 连接正式记账库位，同布局对同库位唯一，空间节点不复制库存余额 |
+| `GoodsPlacement.packageDocumentId` | 唯一，保证一份装箱货物只有一条当前位置 |
+| `GoodsPlacement.locationId / xMm / yMm / zMm / yawDeg` | 正式库位及可空整数毫米坐标、朝向；未知坐标保留空值 |
+| `precision / revision / confirmedBy / confirmedAt` | 默认 `LOCATION_ONLY`，定位精度、并发版本及现场确认依据 |
+| `GoodsMovement` | 货物移动类型、前后位置 JSON、可选原移库凭证、唯一请求号、操作人及时间；不保存第二份数量余额 |
+
+当前位置由 `GoodsPlacement` 所有，箱头/内容明细不维护另一套可独立改写的当前位置。未来空间服务还必须校验层级同布局、循环引用、真实尺寸和布局发布一致性；字段存在不意味着这些后续功能已完成。
 
 ### inventory_balances
 

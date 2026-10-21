@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { consumeMaterialCost } from '@/lib/costing'
-import { changeStockLocationBalance } from '@/modules/inventory'
+import { getPackedInventoryQuantity, changeStockLocationBalance } from '@/modules/inventory'
 import type { LegacyProductionOrderPickInput } from '../contracts/legacy-production-order-execution-schema'
 import { ProductionOrderDomainError } from '../domain/production-order-errors'
 import { legacyPickStatusError, legacyProductionCompatibilityError } from '../domain/legacy-production-order-execution-rules'
@@ -36,6 +36,7 @@ export async function pickLegacyProductionOrder(
 
         const stock = pick.material.stock
         if (!stock) throw new ProductionOrderDomainError(`物料 ${pick.material.name} 无库存记录`)
+        if (await getPackedInventoryQuantity(tx, { materialId: pick.materialId, inventoryStatus: 'ANY' }) > 0.000001) throw new ProductionOrderDomainError('该物料存在装箱库存，旧版领料请先作废相关装箱记录或使用正式生产实绩领料')
         const requiredQty = Number(pick.requiredQty)
         if (Number(stock.availableQty) + requiredQty < item.actualQty) {
           throw new ProductionOrderDomainError(`物料 ${pick.material.name} 库存不足`)

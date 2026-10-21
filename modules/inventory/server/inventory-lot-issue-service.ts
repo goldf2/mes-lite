@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { planWarehouseIssueLots } from './warehouse-package-stock-service'
 import type { InventoryStatus } from '../domain/inventory-status'
 import { settleShipmentStockShortagesWithLot } from './shipment-stock-shortage-service'
 
@@ -200,9 +201,13 @@ export async function consumeAvailableInventoryLots(
     issueValuationQty: number
     issueCostAmount: number
     createdBy?: string | null
+    packageDocumentIds?: string[]
+    shipmentId?: string
   },
 ) {
   await ensureLegacyAvailableLot(tx, input)
+  const lotPlan = await planWarehouseIssueLots(tx, input)
+  const plannedByLot = lotPlan ? new Map(lotPlan.map((item) => [item.lotId, item.stockQty])) : null
   const balances = await tx.inventoryLotBalance.findMany({
     where: {
       lot: { materialId: input.materialId, status: 'OPEN' },
@@ -218,7 +223,8 @@ export async function consumeAvailableInventoryLots(
   for (const balance of balances) {
     if (remainingStockQty <= tolerance) break
     const balanceStockQty = Number(balance.stockQty)
-    const stockQty = roundQty(Math.min(balanceStockQty, remainingStockQty))
+    const stockQty = roundQty(Math.min(balanceStockQty, remainingStockQty, plannedByLot ? plannedByLot.get(balance.lotId) || 0 : remainingStockQty))
+    if (stockQty <= tolerance) continue
     const ratio = balanceStockQty > tolerance ? stockQty / balanceStockQty : 0
     const balanceValuationQty = roundQty(Number(balance.valuationQty) * ratio)
     const balanceCostAmount = roundQty(Number(balance.costAmount) * ratio)

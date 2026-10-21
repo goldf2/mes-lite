@@ -35,8 +35,10 @@ export async function createShipmentPackage(
       _sum: { quantity: true },
     })
     const remainingQty = Number((Number(shipmentItem.qty) - Number(packed._sum.quantity || 0)).toFixed(6))
-    if (input.quantity > remainingQty + quantityTolerance) {
-      throw new SalesDomainError(`装箱数量超过明细未装数量 ${remainingQty} ${shipmentItem.unitSnapshot}`)
+    const warehousePacked = await tx.shipmentItemSource.aggregate({ where: { shipmentItemId: shipmentItem.id, sourceType: 'BOX', status: 'RESERVED' }, _sum: { quantity: true } })
+    const looseRemainingQty = Number((remainingQty - Number(warehousePacked._sum.quantity || 0)).toFixed(6))
+    if (input.quantity > looseRemainingQty + quantityTolerance) {
+      throw new SalesDomainError(`装箱数量超过明细未装数量 ${looseRemainingQty} ${shipmentItem.unitSnapshot}`)
     }
 
     const latest = await tx.packageDocument.findFirst({
@@ -84,6 +86,7 @@ export async function archiveShipmentPackage(
       include: { shipment: { include: { items: { select: { locationId: true } } } } },
     })
     if (!packageDocument) throw new SalesDomainError('货箱单据不存在', 404)
+    if (!packageDocument.shipment || packageDocument.sourceType !== 'SHIPMENT') throw new SalesDomainError('仓库装箱记录需要从仓库装箱页面作废')
     assertInventoryLocationDataScope(scope, packageDocument.shipment.items.map((item) => item.locationId))
     if (packageDocument.shipment.status !== 'PENDING') throw new SalesDomainError('已发货货箱不可归档')
     const updated = await tx.packageDocument.update({

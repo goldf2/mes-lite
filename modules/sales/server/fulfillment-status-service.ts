@@ -13,6 +13,7 @@ import {
 import { createReturnQualityInspection } from '@/modules/quality'
 import { runSalesDomainOperation, SalesDomainError } from '../domain/sales-errors'
 import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import { releaseShipmentWarehousePackages, shipmentPackageIdsByItem } from './shipment-package-allocation-service'
 
 const tolerance = 0.000001
 
@@ -22,31 +23,35 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
       where: { id },
       include: {
         items: {
-          include: { material: true, location: true },
+          include: { material: true, location: true, goodsSources: { where: { status: 'RESERVED' } } },
           orderBy: { sortOrder: 'asc' },
         },
       },
     })
-    if (!shipment) throw new SalesDomainError('发货单不存在', 404)
+    if (!shipment || shipment.deletedAt) throw new SalesDomainError('发货单不存在', 404)
     if (shipment.items.length === 0) throw new SalesDomainError('发货单没有明细，不能确认发货')
     assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
     if (shipment.status !== 'PENDING') throw new SalesDomainError('只能确认待发货状态的发货单')
+    const locked = await tx.shipment.updateMany({ where: { id, status: 'PENDING', deletedAt: null, updatedAt: shipment.updatedAt }, data: { updatedAt: new Date() } })
+    if (locked.count !== 1) throw new SalesDomainError('发货单已变化，请刷新后重试', 409)
+    const warehouse = await shipmentPackageIdsByItem(tx, shipment.id)
 
     const packages = await tx.packageDocument.findMany({
-      where: { shipmentId: shipment.id, deletedAt: null },
+      where: { shipmentId: shipment.id, sourceType: 'SHIPMENT', deletedAt: null },
       include: { items: { select: { shipmentItemId: true, quantity: true } } },
     })
     if (packages.length > 0) {
       const packedByItem = new Map<string, number>()
       for (const packageDocument of packages) {
         for (const item of packageDocument.items) {
-          packedByItem.set(item.shipmentItemId, (packedByItem.get(item.shipmentItemId) || 0) + Number(item.quantity))
+          if (item.shipmentItemId) packedByItem.set(item.shipmentItemId, (packedByItem.get(item.shipmentItemId) || 0) + Number(item.quantity))
         }
       }
       for (const item of shipment.items) {
         const packedQty = packedByItem.get(item.id) || 0
-        if (Math.abs(packedQty - Number(item.qty)) > tolerance) {
-          throw new SalesDomainError(`明细 ${item.material.code} 装箱合计 ${Number(packedQty.toFixed(6))}，必须与发货数量 ${item.qty} ${item.unitSnapshot} 一致`)
+        const boxedQty = item.goodsSources.filter((source) => source.sourceType === 'BOX').reduce((sum, source) => sum + Number(source.quantity), 0)
+        if (packedQty > Number(item.qty) - boxedQty + tolerance) {
+          throw new SalesDomainError(`明细 ${item.material.code} 装箱合计超过未分箱的发货数量`)
         }
       }
     }
@@ -61,6 +66,8 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
       conversionSource: string | null
     } | null = null
     for (const item of shipment.items) {
+      if (item.goodsSources.length > 0 && Math.abs(item.goodsSources.reduce((sum, source) => sum + Number(source.quantity), 0) - Number(item.qty)) > tolerance) throw new SalesDomainError(`明细 ${item.material.code} 货箱和散货来源合计与发货数量不一致`, 409)
+      const packageDocumentIds = warehouse.byItem.get(item.id) || []
       const issue = await postInventoryIssue(tx, {
         materialId: item.materialId,
         stockQty: Number(item.qty),
@@ -72,6 +79,7 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
         idempotencyKey: `SHIPMENT:${shipment.id}:ITEM:${item.id}:SHIP`,
         locationId: item.locationId,
         allowNegativeStock: true,
+        packageDocumentIds,
       })
       if (Number(issue.allocatedStockQty) > tolerance) {
         await allocateShipmentInventoryLots(tx, {
@@ -87,6 +95,7 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
           issueCostAmount: Number(issue.costAmount),
           stockLogId: issue.movement!.id,
           createdBy: shippedBy,
+          packageDocumentIds,
         })
       }
       if (Number(issue.negativeStockQty) > tolerance) {
@@ -128,6 +137,7 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
       data: {
         status: 'SHIPPED',
         shippedAt: new Date(),
+        shippedBy,
         lotTraceStatus: hasStockShortage ? 'SHORTAGE' : 'TRACKED',
         shippedValuationQty,
         shippedCostAmount,
@@ -140,30 +150,43 @@ export async function shipManagedShipment(id: string, shippedBy: string, scope: 
     if (packages.length > 0) {
       await tx.packageDocument.updateMany({ where: { shipmentId: shipment.id, deletedAt: null }, data: { status: 'SHIPPED' } })
     }
+    for (const allocation of warehouse.allocations) {
+      await tx.packageDocument.update({ where: { id: allocation.packageDocumentId }, data: { status: 'SHIPPED', revision: { increment: 1 } } })
+      await tx.goodsMovement.create({ data: { packageDocumentId: allocation.packageDocumentId, movementType: 'SHIP', beforeJson: JSON.stringify(allocation.packageDocument.placement), afterJson: JSON.stringify({ status: 'SHIPPED', shipmentId: shipment.id }), clientRequestId: `SHIP:${shipment.id}:PACKAGE:${allocation.packageDocumentId}`, operatedBy: shippedBy } })
+    }
+    await tx.shipmentPackageAllocation.updateMany({ where: { shipmentId: shipment.id, status: 'RESERVED' }, data: { status: 'SHIPPED' } })
+    await tx.shipmentItemSource.updateMany({ where: { shipmentItem: { shipmentId: shipment.id }, status: 'RESERVED' }, data: { status: 'SHIPPED' } })
     return { before: shipment, updated }
   }))
 }
 
 export async function deliverManagedShipment(id: string, deliveredBy: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.shipment.findUnique({ where: { id }, include: { items: { select: { locationId: true } } } })
-  if (!before) throw new SalesDomainError('发货单不存在', 404)
+  if (!before || before.deletedAt) throw new SalesDomainError('发货单不存在', 404)
   assertInventoryLocationDataScope(scope, before.items.map((item) => item.locationId))
   if (before.status !== 'SHIPPED') throw new SalesDomainError('只能确认已发货状态的发货单签收')
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.shipment.update({ where: { id }, data: { status: 'DELIVERED', deliveredAt: new Date(), deliveredBy } })
+    const changed = await tx.shipment.updateMany({ where: { id, status: 'SHIPPED', deletedAt: null, updatedAt: before.updatedAt }, data: { status: 'DELIVERED', deliveredAt: new Date(), deliveredBy } })
+    if (changed.count !== 1) throw new SalesDomainError('发货单已变化，请刷新后重试', 409)
+    const updated = await tx.shipment.findUniqueOrThrow({ where: { id } })
     await tx.packageDocument.updateMany({ where: { shipmentId: id, deletedAt: null, status: 'SHIPPED' }, data: { status: 'DELIVERED' } })
+    const allocations = await tx.shipmentPackageAllocation.findMany({ where: { shipmentId: id, status: 'SHIPPED' }, select: { packageDocumentId: true } })
+    await tx.packageDocument.updateMany({ where: { id: { in: allocations.map((item) => item.packageDocumentId) }, status: 'SHIPPED' }, data: { status: 'DELIVERED' } })
     return { before, updated }
   })
 }
 
 export async function cancelManagedShipment(id: string, cancelledBy: string, reason: string, scope: EffectiveDataScope = unrestrictedDataScope) {
   const before = await prisma.shipment.findUnique({ where: { id }, include: { items: { select: { locationId: true } } } })
-  if (!before) throw new SalesDomainError('发货单不存在', 404)
+  if (!before || before.deletedAt) throw new SalesDomainError('发货单不存在', 404)
   assertInventoryLocationDataScope(scope, before.items.map((item) => item.locationId))
   if (before.status !== 'PENDING') throw new SalesDomainError('只有待发货单可以取消；已发货请冲销，已签收请登记退货')
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.shipment.update({ where: { id }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledBy, cancelReason: reason } })
-    await tx.packageDocument.updateMany({ where: { shipmentId: id, deletedAt: null, status: 'PACKED' }, data: { status: 'CANCELLED' } })
+    const changed = await tx.shipment.updateMany({ where: { id, status: 'PENDING', deletedAt: null, updatedAt: before.updatedAt }, data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledBy, cancelReason: reason } })
+    if (changed.count !== 1) throw new SalesDomainError('发货单已变化，请刷新后重试', 409)
+    const updated = await tx.shipment.findUniqueOrThrow({ where: { id } })
+    await tx.packageDocument.updateMany({ where: { shipmentId: id, sourceType: 'SHIPMENT', deletedAt: null, status: 'PACKED' }, data: { status: 'CANCELLED' } })
+    await releaseShipmentWarehousePackages(tx, id)
     return { before, updated }
   })
 }
@@ -182,10 +205,12 @@ export async function reverseManagedShipment(
         returnOrders: { select: { id: true, returnNo: true, status: true } },
       },
     })
-    if (!shipment) throw new SalesDomainError('发货单不存在', 404)
+    if (!shipment || shipment.deletedAt) throw new SalesDomainError('发货单不存在', 404)
     assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
     if (shipment.status === 'DELIVERED') throw new SalesDomainError('发货单已经签收，不能冲销发货，请登记客户退货')
     if (shipment.status !== 'SHIPPED') throw new SalesDomainError('只能冲销已发货、尚未签收的发货单')
+    const locked = await tx.shipment.updateMany({ where: { id, status: 'SHIPPED', deletedAt: null, updatedAt: shipment.updatedAt }, data: { updatedAt: new Date() } })
+    if (locked.count !== 1) throw new SalesDomainError('发货单已变化，请刷新后重试', 409)
     const activeReturn = shipment.returnOrders.find((item) => item.status === 'PENDING' || item.status === 'PROCESSED')
     if (activeReturn) throw new SalesDomainError(`发货单已有退货单 ${activeReturn.returnNo}，不能再整单冲销`)
 
@@ -235,6 +260,13 @@ export async function reverseManagedShipment(
       where: { shipmentId: shipment.id, deletedAt: null, status: 'SHIPPED' },
       data: { status: 'REVERSED' },
     })
+    const allocations = await tx.shipmentPackageAllocation.findMany({ where: { shipmentId: shipment.id, status: 'SHIPPED' }, include: { packageDocument: { include: { placement: true } } } })
+    for (const allocation of allocations) {
+      await tx.packageDocument.update({ where: { id: allocation.packageDocumentId }, data: { status: 'PACKED', revision: { increment: 1 } } })
+      await tx.goodsMovement.create({ data: { packageDocumentId: allocation.packageDocumentId, movementType: 'SHIPMENT_REVERSE', beforeJson: JSON.stringify({ status: 'SHIPPED', shipmentId: shipment.id }), afterJson: JSON.stringify(allocation.packageDocument.placement), clientRequestId: `REVERSE:${shipment.id}:PACKAGE:${allocation.packageDocumentId}`, operatedBy: reversedBy } })
+    }
+    await tx.shipmentPackageAllocation.updateMany({ where: { shipmentId: shipment.id, status: 'SHIPPED' }, data: { status: 'REVERSED', releasedAt: new Date() } })
+    await tx.shipmentItemSource.updateMany({ where: { shipmentItem: { shipmentId: shipment.id }, status: 'SHIPPED' }, data: { status: 'REVERSED' } })
     return { before: shipment, updated }
   }))
 }

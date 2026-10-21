@@ -375,16 +375,20 @@ export async function purgeArchivedRecord(
       addCountBlocker(blockers, counts._count.costRecords, '成本记录')
       addCountBlocker(blockers, stockLogCount, '库存流水')
     } else if (model === 'shipment') {
-      const [returnCount, stockLogCount, lotAllocationCount, returnLotAllocationCount] = await Promise.all([
+      const [returnCount, stockLogCount, lotAllocationCount, returnLotAllocationCount, warehouseBoxCount, legacyBoxCount] = await Promise.all([
         tx.returnOrder.count({ where: { shipmentId: id } }),
         tx.stockLog.count({ where: { refId: id } }),
         tx.shipmentLotAllocation.count({ where: { shipmentId: id } }),
         tx.returnLotAllocation.count({ where: { shipmentAllocation: { shipmentId: id } } }),
+        tx.shipmentPackageAllocation.count({ where: { shipmentId: id } }),
+        tx.packageDocument.count({ where: { shipmentId: id } }),
       ])
       addCountBlocker(blockers, returnCount, '退货单')
       addCountBlocker(blockers, stockLogCount, '库存流水')
       addCountBlocker(blockers, lotAllocationCount, '发货批次分配')
       addCountBlocker(blockers, returnLotAllocationCount, '退货批次谱系')
+      addCountBlocker(blockers, warehouseBoxCount, '仓库货箱发货历史')
+      addCountBlocker(blockers, legacyBoxCount, '历史装箱单据')
     } else if (model === 'return') {
       const [stockLogCount, lotCount, allocationCount] = await Promise.all([
         tx.stockLog.count({ where: { refId: id } }),
@@ -435,6 +439,7 @@ export async function purgeArchivedRecord(
       })
       await tx.stockLog.deleteMany({ where: { refId: { in: lineIds } } })
     }
+    if (model === 'shipment') await tx.shipmentItemSource.deleteMany({ where: { shipmentItem: { shipmentId: id } } })
     const deleted = await delegate.delete({ where: { id } })
     return {
       id: deleted.id as string,

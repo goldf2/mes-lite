@@ -21,6 +21,7 @@ export async function allocateShipmentInventoryLots(
     issueCostAmount: number
     stockLogId?: string | null
     createdBy?: string | null
+    packageDocumentIds?: string[]
   },
 ) {
   const existing = await tx.shipmentLotAllocation.findMany({

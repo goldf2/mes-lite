@@ -1,5 +1,16 @@
 # MES-lite 代码目录与模块边界规范
 
+## v0.1.499 仓库装箱与选箱切片（实施候选）
+
+装箱契约、来源查询、独立箱命令、库位/数量保护和公共主从页面归 inventory；发货选箱分配、来源及履约归 sales；标签任务及渲染复用 operations-tools。app API 保持薄适配，跨域通过公开出口。原旧版本扫描表保留，当前本地候选计数如下，注册与文件数不是验收结论。
+
+| 目录 | 本地候选数量 | 归属与边界 |
+| --- | --- | --- |
+| `modules/` | 647 个 TypeScript/TSX 文件 | 共19个现有模块，不新增有状态容器领域或平行打印框架 |
+| `app/api/` | 192 个 `route.ts` | 六个新增仓库装箱适配器，数据/事务在领域服务 |
+| `lib/page-registry.ts` | 54 个页面定义 | 新 warehousePackages，沿用 stocks 读取及库位范围 |
+
+
 ## v0.1.480 身份入口与设置组合
 
 Casdoor配置解析、代际、挑战、原会话策略与client/UI均归identity-access；app新增薄登录路由与设置/恢复页面。app/settings/login组合原SystemSettingsPageShell，不产生system-settings对identity-access的跨模块依赖；维持49edge预算、深导入0。复用固定公共认证包，不复制OIDC工具。见[设计](./casdoor-login.md)。
@@ -954,3 +965,7 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 ### v0.1.496 新领域公开依赖准入
 
 用户在2026-10-20明确批准 task-collaboration 对 identity-access 和 attachments 的两条必要公开依赖，跨模块边上限由49登记为51；分别复用既有数据范围/鉴权，以及附件来源授权/冻结/公共查看器。不复制权限或存储实现、不通过导入别名隐藏依赖。其他架构预算、循环及深层导入约束保持不变。Page与草稿表单已拆为本领域协调器和纯面板/字段组件，新增UI文件均低于600行。
+
+## v0.1.499 仓库装箱与标签组合
+
+仓库装箱与位置事实由 inventory 拥有；发货来源分摊由 sales 拥有，继续通过库存公开事务服务出库。库存页面通过渲染槽位由应用壳组合原有标签弹窗和附件面板，避免 inventory 与 operations-tools/attachments 双向依赖。通用扫码单据投影仍由 business-documents 读取持久化单据与库位范围，不反向调用库存页面或业务命令。唯一新增跨模块依赖为 operations-tools → inventory：打印任务调用库存公开标签版本服务，使用服务端固化内容，不信任浏览器自填箱签。依赖边预算由51调整到52；没有新增环、双向依赖或深导入，原有环白名单不变。

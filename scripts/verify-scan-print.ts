@@ -134,15 +134,32 @@ async function main() {
     assert.equal(job.printerDpi, 203)
     assert.equal((await createLabelPrintJob(jobInput, '重复请求')).id, job.id, '打印任务创建必须幂等')
 
+    const [labelLocation, labelMaterial] = await Promise.all([
+      prisma.inventoryLocation.create({ data: { code: `LABEL-LOC-${suffix}`, name: '标签验证库位' } }),
+      prisma.material.create({ data: { code: `LABEL-MAT-${suffix}`, name: '标签验证产品', unit: '件', stockUnit: '件', valuationUnit: '件' } }),
+    ])
+    const labelShipment = await prisma.shipment.create({ data: {
+      shipmentNo: `SH-LABEL-${suffix}`, customer: '标签验证客户',
+      items: { create: { materialId: labelMaterial.id, locationId: labelLocation.id, qty: 1, unitSnapshot: '件' } },
+    }, include: { items: true } })
+    const labelPackage = await prisma.packageDocument.create({ data: {
+      packageNo: `BX-LABEL-${suffix}`, shipmentId: labelShipment.id, packedBy: '标签验证员',
+      items: { create: { shipmentItemId: labelShipment.items[0].id, materialId: labelMaterial.id, quantity: 1, unitSnapshot: '件' } },
+    } })
+    await assert.rejects(() => createLabelPrintJob(createLabelPrintJobSchema.parse({
+      clientRequestId: `VERIFY-MISSING-DOCUMENT-${suffix}`, templateType: 'DOCUMENT_QR', referenceType: 'PACKAGE_DOCUMENT',
+      referenceId: 'missing-package', copies: 1, labelWidthMm: 105, labelHeightMm: 70, payload: { code: 'BX-MISSING' },
+    }), '验证员'), /不存在/, '标签必须绑定实际存在的箱，不能只传一个任意箱号')
+
     const documentJob = await createLabelPrintJob(createLabelPrintJobSchema.parse({
       clientRequestId: `VERIFY-DOCUMENT-PRINT-${suffix}`,
       templateType: 'DOCUMENT_QR',
       referenceType: 'PACKAGE_DOCUMENT',
-      referenceId: 'BX-VERIFY-CODE',
+      referenceId: labelPackage.id,
       copies: 1,
       labelWidthMm: 105,
       labelHeightMm: 70,
-      payload: { code: 'BX-VERIFY-CODE' },
+      payload: { code: labelPackage.packageNo },
     }), '验证员')
     assert.equal(documentJob.templateType, 'DOCUMENT_QR')
 

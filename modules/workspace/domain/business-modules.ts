@@ -34,7 +34,7 @@ const moduleFunctionKeys: Record<BusinessModuleKey, readonly WorkspaceFunctionKe
   production: ['orders', 'dailyInventory', 'dispatch', 'taskCollaboration', 'qualityTasks', 'employees', 'workCenters', 'processTemplates', 'processRoutes', 'sawingCost'],
   sales: ['salesOrders', 'customers'],
   logistics: ['materialIn', 'materialInHistory', 'shipment', 'shipmentHistory', 'return', 'suppliers'],
-  inventory: ['stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'locationSettings', 'flowTransfers', 'scanPrint'],
+  inventory: ['stocks', 'warehousePackages', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'locationSettings', 'flowTransfers', 'scanPrint'],
   materials: ['materialManagement', 'bomWorkspace', 'bomUsage', 'workInstructions', 'documentCategories', 'unitSettings'],
   equipment: ['equipment', 'equipmentInspections', 'equipmentMaintenance'],
   customers: ['dataCustomers', 'dataContacts', 'dataSites', 'dataCustomerMap'],

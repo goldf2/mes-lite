@@ -4,6 +4,9 @@ export { default as DailyInventoryCountPage } from './ui/DailyInventoryCountPage
 export { default as InventoryLotTraceDialog } from './ui/InventoryLotTraceDialog'
 export { default as InventoryLotPanoramaPageModule } from './ui/InventoryLotPanoramaPageModule'
 export { default as WarehouseDigitalTwinPageModule } from './ui/WarehouseDigitalTwinPageModule'
+export { resolveWarehousePackage, warehousePackageScopeWhere } from './server/warehouse-package-query-service'
+export { getOrCreateWarehousePackageLabel } from './server/warehouse-package-command-service'
+export { WarehousePackageError, warehousePackageCode } from './domain/warehouse-package'
 export { loadInventoryLocations } from './client/stock-api'
 export type { InventoryLocationOption } from './contracts/stock'
 export { inventoryStatusLabel, inventoryStatuses } from './domain/inventory-status'
@@ -47,3 +50,8 @@ export {
   transferAvailableInventoryLots,
   transitionInventoryLotStatus,
 } from './server/inventory-status-service'
+
+export { default as WarehousePackagePageModule } from './ui/WarehousePackagePageModule'
+export { loadWarehousePackages, resolveWarehousePackage as resolveWarehousePackageCode, prepareWarehousePackageLabel } from './client/warehouse-package-api'
+export type { WarehousePackage, WarehousePackageItem, WarehousePackageList, WarehousePackageLabelRevision, WarehousePackingOption, WarehousePackageForm } from './contracts/warehouse-package'
+export { getPackedInventoryQuantity, listPackedInventoryItems } from './server/warehouse-package-stock-service'

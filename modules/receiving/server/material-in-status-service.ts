@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { changeStockLocationBalance, postInventoryReceipt, type ConversionSource } from '@/modules/inventory'
+import { getPackedInventoryQuantity, changeStockLocationBalance, postInventoryReceipt, type ConversionSource } from '@/modules/inventory'
 import { createInventoryLotReceipt, createInventoryReversalMovement } from '@/modules/inventory'
 import {
   createMaterialInQualityInspection,
@@ -129,6 +129,7 @@ async function reverseMaterialInLine(
   const lot = current.inventoryLot
   let reversalInventoryStatus: 'AVAILABLE' | 'QUARANTINE' = 'AVAILABLE'
   if (lot) {
+    if (await getPackedInventoryQuantity(tx, { inventoryLotId: lot.id, inventoryStatus: 'ANY' }) > 0.000001) throw new MaterialInDomainError('该批次已有装箱货物，请先作废相关装箱记录再红冲')
     try {
       reversalInventoryStatus = (await prepareMaterialInQualityReversal(tx, {
         lotId: lot.id, materialInId: current.id, reason: input.reason, reversedBy,

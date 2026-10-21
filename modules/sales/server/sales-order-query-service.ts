@@ -238,7 +238,7 @@ export async function getShipmentCreateOptions(scope: EffectiveDataScope = unres
   const locationBalanceWhere = scope.inventoryMode === 'LOCATIONS'
     ? { locationId: { in: scope.locationIds } }
     : undefined
-  const [customers, materials, references] = await Promise.all([
+  const [customers, materials, references, packedItems] = await Promise.all([
     prisma.customer.findMany({
       where: { deletedAt: null }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       select: { id: true, code: true, name: true, phone: true, address: true },
@@ -256,7 +256,19 @@ export async function getShipmentCreateOptions(scope: EffectiveDataScope = unres
       },
     }),
     loadCustomerMaterialDeliveryReferences(undefined, scope),
+    prisma.packageDocumentItem.findMany({
+      where: { inventoryStatus: 'AVAILABLE', packageDocument: { is: { sourceType: 'WAREHOUSE', status: 'PACKED', deletedAt: null, placement: { is: scope.inventoryMode === 'ALL' ? {} : { locationId: { in: scope.locationIds } } } } } },
+      select: { materialId: true, quantity: true, packageDocument: { select: { placement: { select: { locationId: true } } } } },
+    }),
   ])
   const images = await loadPrimaryMaterialImageMap(materials.map((material) => material.id))
-  return { data: Array.from(references.values()), customers, materials: materials.map((material) => ({ ...material, primaryImage: images.get(material.id) || null })) }
+  const packedByLocation = new Map<string, number>()
+  for (const item of packedItems) {
+    const key = `${item.materialId}:${item.packageDocument.placement!.locationId}`
+    packedByLocation.set(key, (packedByLocation.get(key) || 0) + Number(item.quantity))
+  }
+  return { data: Array.from(references.values()), customers, materials: materials.map((material) => ({
+    ...material, primaryImage: images.get(material.id) || null,
+    stock: material.stock ? { ...material.stock, locationBalances: material.stock.locationBalances.map((balance) => ({ ...balance, stockAvailableQty: balance.availableQty, packedQty: packedByLocation.get(`${material.id}:${balance.locationId}`) || 0, availableQty: Math.max(0, Number((Number(balance.availableQty) - (packedByLocation.get(`${material.id}:${balance.locationId}`) || 0)).toFixed(6))) })) } : null,
+  })) }
 }

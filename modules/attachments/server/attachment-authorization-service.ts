@@ -101,7 +101,10 @@ async function attachmentOwnerExists(ownerType: AttachmentOwnerType, ownerId: st
       where: {
         id: ownerId,
         deletedAt: null,
-        shipment: { is: { deletedAt: null, ...shipmentDataScopeWhere(scope) } },
+        OR: [{ sourceType: 'SHIPMENT', shipment: { is: { deletedAt: null, ...shipmentDataScopeWhere(scope) } } }, {
+          sourceType: 'WAREHOUSE',
+          ...(scope.inventoryMode === 'ALL' ? {} : { placement: { is: { locationId: { in: scope.locationIds } } } }),
+        }],
       },
       select: { id: true },
     }))
@@ -162,7 +165,7 @@ async function requirePermission(
   context: AttachmentOwnerContext,
   operation: AttachmentAccessOperation,
 ) {
-  const ownerResource = context.targetOwnerType === 'PACKAGE_DOCUMENT' && operation !== 'read'
+  const ownerResource = context.targetOwnerType === 'PACKAGE_DOCUMENT' && context.resource !== 'stocks' && operation !== 'read'
     ? 'shipmentDispatch'
     : context.resource
   const ownerAction = context.targetOwnerType === 'PACKAGE_DOCUMENT' && operation !== 'read'
@@ -182,7 +185,11 @@ async function requireOwner(
   operation: AttachmentAccessOperation,
   attachment?: AttachmentRecord,
 ) {
-  const context = requireSupportedOwner(ownerType)
+  let context = requireSupportedOwner(ownerType)
+  if (context.targetOwnerType === 'PACKAGE_DOCUMENT' && !context.draft) {
+    const box = await prisma.packageDocument.findUnique({ where: { id: ownerId }, select: { sourceType: true } })
+    if (box?.sourceType === 'WAREHOUSE') context = { ...context, resource: 'stocks' }
+  }
   await requirePermission(operator, context, operation)
   if (attachment?.documentType === TASK_RELEASE_ATTACHMENT_DOCUMENT_TYPE && operation !== 'read') {
     throw new AttachmentDomainError('已发布任务资料不可修改或归档', 409)

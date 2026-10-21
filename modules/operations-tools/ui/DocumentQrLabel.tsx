@@ -10,19 +10,41 @@ export type DocumentQrLabelData = {
   code: string
   description: string
   details: string[]
+  qrValue?: string
+  layout?: 'packing'
+  fields?: Array<{ label: string; value: string }>
 }
 
 export default function DocumentQrLabel({ data, media }: { data: DocumentQrLabelData; media: LabelMediaProfile }) {
   const [qrDataUrl, setQrDataUrl] = useState('')
 
   useEffect(() => {
-    QRCode.toDataURL(data.code, {
+    QRCode.toDataURL(data.qrValue || data.code, {
       errorCorrectionLevel: 'M',
       margin: 2,
       width: 720,
       color: { dark: '#000000', light: '#ffffff' },
     }).then(setQrDataUrl).catch(() => setQrDataUrl(''))
-  }, [data.code])
+  }, [data.code, data.qrValue])
+
+  if (data.layout === 'packing') return (
+    <section data-packing-label="true" className="shipment-label-sheet" style={{ width: `${media.widthMm}mm`, height: `${media.heightMm}mm`, padding: '3mm', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', overflow: 'hidden' }}>
+      <div className="flex items-center justify-between border-b border-black pb-1">
+        <h2 className="text-[16px] font-black leading-tight">{data.title}</h2>
+        <span className="text-[8px]">扫码选箱发货</span>
+      </div>
+      <div className="mt-1.5 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_27mm] gap-2">
+        <dl className="grid min-w-0 content-start grid-cols-[auto_minmax(0,1fr)] gap-x-1.5 gap-y-[1mm] text-[9px] leading-[1.25]">
+          {data.fields?.map((field) => <div key={field.label} className="contents"><dt className="whitespace-nowrap text-gray-700">{field.label}</dt><dd className="min-w-0 break-words font-medium">{field.value}</dd></div>)}
+        </dl>
+        <div className="flex min-w-0 flex-col items-center justify-center border-l border-black pl-1.5">
+          {qrDataUrl ? <Image src={qrDataUrl} alt="装箱记录二维码" width={120} height={120} unoptimized className="h-[25mm] w-[25mm]" /> : <div className="h-[25mm] w-[25mm] border border-dashed border-gray-400" />}
+          <div className="mt-1 break-all text-center font-mono text-[8px] font-bold">{data.code}</div>
+          <div className="mt-2 text-center text-[7px] text-gray-600">位置以系统当前记录为准</div>
+        </div>
+      </div>
+    </section>
+  )
 
   return (
     <section className="shipment-label-sheet" style={{ width: `${media.widthMm}mm`, height: `${media.heightMm}mm`, padding: '4mm' }}>

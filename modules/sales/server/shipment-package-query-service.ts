@@ -18,6 +18,17 @@ export const shipmentPackageInclude = {
   },
 } as const
 
+export const shipmentWarehousePackagesInclude = {
+  include: { packageDocument: { include: shipmentPackageInclude } },
+  orderBy: { reservedAt: 'asc' as const },
+} as const
+
+export function mergeShipmentPackages<T extends { id: string }>(packages: T[], allocations: Array<{ status: string; packageDocument: T }>): T[] {
+  const result = new Map<string, T>(packages.map((item) => [item.id, item] as [string, T]))
+  for (const allocation of allocations) result.set(allocation.packageDocument.id, { ...allocation.packageDocument, shipmentAllocationStatus: allocation.status })
+  return Array.from(result.values())
+}
+
 export async function listShipmentPackages(
   shipmentId: string,
   scope: EffectiveDataScope = unrestrictedDataScope,
@@ -29,7 +40,7 @@ export async function listShipmentPackages(
   if (!shipment) throw new SalesDomainError('发货单不存在或无权访问', 404)
   assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
   return prisma.packageDocument.findMany({
-    where: { shipmentId, deletedAt: null },
+    where: { deletedAt: null, OR: [{ shipmentId }, { allocations: { some: { shipmentId } } }] },
     include: shipmentPackageInclude,
     orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }],
   })
@@ -50,6 +61,7 @@ export async function getShipmentPackage(
     include: { ...shipmentPackageInclude, shipment: { select: { shipmentNo: true, items: { select: { locationId: true } } } } },
   })
   if (!packageDocument) throw new SalesDomainError('货箱单据不存在或无权访问', 404)
+  if (!packageDocument.shipment) throw new SalesDomainError('该箱属于仓库装箱记录，请从仓库装箱查询', 400)
   assertInventoryLocationDataScope(scope, packageDocument.shipment.items.map((item) => item.locationId))
   return packageDocument
 }

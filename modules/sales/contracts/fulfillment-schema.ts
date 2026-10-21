@@ -20,8 +20,12 @@ export const createShipmentSchema = z.object({
   trackingNo: z.string().optional(),
   note: z.string().optional(),
   shippedBy: z.string().optional(),
-  items: z.array(createShipmentItemSchema).min(1, '至少添加一项发货明细').max(100, '单张发货单最多 100 项'),
-}).strict()
+  items: z.array(createShipmentItemSchema).max(100, '单张发货单最多 100 项').default([]),
+  packageIds: z.array(z.string().min(1)).max(100, '单张发货单最多选择 100 箱').optional(),
+}).strict().superRefine((value, context) => {
+  if (value.items.length === 0 && !value.packageIds?.length) context.addIssue({ code: z.ZodIssueCode.custom, message: '至少添加一项散货或选择一箱货物', path: ['items'] })
+  if (new Set(value.packageIds).size !== (value.packageIds?.length || 0)) context.addIssue({ code: z.ZodIssueCode.custom, message: '同一货箱不能重复添加', path: ['packageIds'] })
+})
 
 export const createReturnSchema = z.object({
   voucherNo: z.string().optional(),

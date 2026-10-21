@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { getPackedInventoryQuantity } from './warehouse-package-stock-service'
 import { inventoryStatusLabel, type InventoryStatus } from '../domain/inventory-status'
 import {
   ensureLegacyAvailableLot,
@@ -220,7 +221,9 @@ export async function transferAvailableInventoryLots(
   for (const balance of balances) {
     if (remainingStockQty <= tolerance) break
     const balanceStockQty = Number(balance.stockQty)
-    const stockQty = roundQty(Math.min(balanceStockQty, remainingStockQty))
+    const packedQty = await getPackedInventoryQuantity(tx, { inventoryLotId: balance.lotId, locationId: input.sourceLocationId })
+    const stockQty = roundQty(Math.min(Math.max(0, balanceStockQty - packedQty), remainingStockQty))
+    if (stockQty <= tolerance) continue
     const ratio = balanceStockQty > tolerance ? stockQty / balanceStockQty : 0
     const valuationQty = roundQty(Number(balance.valuationQty) * ratio)
     const costAmount = roundQty(Number(balance.costAmount) * ratio)
@@ -297,6 +300,9 @@ export async function transitionInventoryLotStatus(
   if (!Number.isFinite(stockQty) || stockQty <= tolerance || stockQty > sourceStockQty + tolerance) {
     throw new Error(`批次 ${lot.lotNo} 的状态转换数量无效`)
   }
+  const packedQty = await getPackedInventoryQuantity(tx, { inventoryLotId: lot.id, locationId: source.locationId, inventoryStatus: input.fromStatus })
+  const fullTransition = Math.abs(stockQty - sourceStockQty) <= tolerance
+  if (!fullTransition && stockQty > sourceStockQty - packedQty + tolerance) throw new Error('部分质量处置涉及已装箱货物，请先作废对应装箱记录再处理')
   const ratio = sourceStockQty > tolerance ? stockQty / sourceStockQty : 0
   const valuationQty = roundQty(Number(source.valuationQty) * ratio)
   const costAmount = roundQty(Number(source.costAmount) * ratio)
@@ -377,6 +383,10 @@ export async function transitionInventoryLotStatus(
     stockQty,
     sourceStockQty,
   })
+  if (fullTransition && packedQty > tolerance) await tx.packageDocumentItem.updateMany({
+    where: { inventoryLotId: lot.id, inventoryStatus: input.fromStatus, packageDocument: { is: { sourceType: 'WAREHOUSE', status: 'PACKED', deletedAt: null, placement: { is: { locationId: source.locationId } } } } },
+    data: { inventoryStatus: input.toStatus },
+  })
 
   const beforeQty = Number(stock.qty)
   const beforeValuationQty = Number(stock.valuationQty)
@@ -453,6 +463,8 @@ export async function scrapInventoryLotQuantity(
   const sourceQty = Number(source.stockQty)
   const stockQty = roundQty(input.stockQty)
   if (!Number.isFinite(stockQty) || stockQty <= tolerance || stockQty > sourceQty + tolerance) throw new Error('报废数量无效')
+  const packedQty = await getPackedInventoryQuantity(tx, { inventoryLotId: lot.id, locationId: source.locationId, inventoryStatus: input.fromStatus })
+  if (stockQty > sourceQty - packedQty + tolerance) throw new Error('报废数量涉及已装箱货物，请先作废对应装箱记录')
   const ratio = stockQty / sourceQty
   const valuationQty = roundQty(Number(source.valuationQty) * ratio)
   const costAmount = roundQty(Number(source.costAmount) * ratio)

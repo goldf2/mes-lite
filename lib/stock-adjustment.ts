@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { getPackedInventoryQuantity } from '@/modules/inventory'
 import { changeStockLocationBalance, resolveInventoryLocation } from './inventory'
 import { resolveMaterialUnits, toValuationQty } from './units'
 
@@ -24,6 +25,7 @@ export async function postStockLocationAdjustment(
     include: { material: true, product: true },
   })
   if (!stock) throw new StockAdjustmentError('库存记录不存在')
+  if (stock.materialId && await getPackedInventoryQuantity(tx, { materialId: stock.materialId, locationId: input.locationId, inventoryStatus: 'ANY' }) > 0.000001) throw new StockAdjustmentError('该库位有已装箱货物，请先核实并作废相应装箱记录，再调整或盘点库存')
   if (stock.material?.costingMethod === 'FIFO') {
     throw new StockAdjustmentError('FIFO 物料不能直接修改库存余额，请使用来料、生产、退货或后续正式盘点单，避免库存与成本层不一致')
   }

@@ -1,6 +1,6 @@
 export interface ShipmentPackageItem {
   id: string
-  shipmentItemId: string
+  shipmentItemId?: string | null
   materialId: string
   inventoryLotId?: string | null
   quantity: number
@@ -14,7 +14,9 @@ export interface ShipmentPackageItem {
 export interface ShipmentPackage {
   id: string
   packageNo: string
-  shipmentId: string
+  shipmentId: string | null
+  sourceType?: string
+  contentVersion?: number
   status: string
   packedBy: string
   packedAt: string

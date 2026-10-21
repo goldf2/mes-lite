@@ -2,7 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { tokenizeKeywordQuery, type ResourceSearchCondition } from '@/lib/resource-search'
 import { SalesDomainError } from '../domain/sales-errors'
-import { shipmentPackageInclude } from './shipment-package-query-service'
+import { shipmentPackageInclude, shipmentWarehousePackagesInclude, mergeShipmentPackages } from './shipment-package-query-service'
 import {
   assertInventoryLocationDataScope,
   returnDataScopeWhere,
@@ -59,6 +59,7 @@ function applyStatuses<T extends { status?: string | { in: string[] } }>(where: 
 }
 
 const shipmentItemsInclude = {
+  goodsSources: { select: { sourceType: true, quantity: true, inventoryLotId: true, packageDocumentItemId: true, status: true } },
   material: { select: { id: true, code: true, name: true, spec: true, stockUnit: true } },
   location: { select: { id: true, code: true, name: true, isDefault: true } },
   returnOrders: { where: { deletedAt: null, status: { in: ['PENDING', 'PROCESSED'] } }, select: { qty: true } },
@@ -82,6 +83,8 @@ function serializeShipmentItems(items: ShipmentItemWithDetails[], images: Readon
     const returnedQty = item.returnOrders.reduce((sum, value) => sum + Number(value.qty), 0)
     return {
       ...item,
+      boxQty: item.goodsSources.filter((source) => source.sourceType === 'BOX').reduce((sum, source) => sum + Number(source.quantity), 0),
+      looseQty: item.goodsSources.length ? item.goodsSources.filter((source) => source.sourceType === 'LOOSE').reduce((sum, source) => sum + Number(source.quantity), 0) : Number(item.qty),
       material: { ...item.material, primaryImage: images.get(item.materialId) || null },
       returnedQty,
       returnableQty: Math.max(0, Number((Number(item.qty) - returnedQty).toFixed(6))),
@@ -159,6 +162,7 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
           include: shipmentPackageInclude,
           orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }],
         },
+        packageAllocations: shipmentWarehousePackagesInclude,
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: input.exportAll ? undefined : (input.page - 1) * input.pageSize, take: input.exportAll ? undefined : input.pageSize,
     }),
@@ -175,6 +179,8 @@ export async function listShipments(input: FulfillmentQuery, scope: EffectiveDat
     const returnedQty = items.reduce((sum, item) => sum + item.returnedQty, 0)
     return {
       ...shipment,
+      packages: mergeShipmentPackages(shipment.packages, shipment.packageAllocations),
+      packageAllocations: undefined,
       items,
       returnedQty,
       returnableQty: Math.max(0, Number((Number(shipment.qty) - returnedQty).toFixed(6))),
@@ -235,6 +241,7 @@ export async function getShipmentDetail(id: string, scope: EffectiveDataScope = 
         orderBy: { createdAt: 'asc' },
       },
       packages: { where: { deletedAt: null }, include: shipmentPackageInclude, orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }] },
+      packageAllocations: shipmentWarehousePackagesInclude,
     },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在', 404)
@@ -244,6 +251,8 @@ export async function getShipmentDetail(id: string, scope: EffectiveDataScope = 
   const returnedQty = items.reduce((sum, item) => sum + item.returnedQty, 0)
   return {
     ...shipment,
+    packages: mergeShipmentPackages(shipment.packages, shipment.packageAllocations),
+    packageAllocations: undefined,
     items,
     returnedQty,
     returnableQty: Math.max(0, Number((Number(shipment.qty) - returnedQty).toFixed(6))),
@@ -280,11 +289,12 @@ export async function getShipmentDeliveryNoteSource(id: string, scope: Effective
         include: shipmentPackageInclude,
         orderBy: [{ packedAt: 'asc' }, { createdAt: 'asc' }],
       },
+      packageAllocations: shipmentWarehousePackagesInclude,
     },
   })
   if (!shipment) throw new SalesDomainError('发货单不存在', 404)
   assertInventoryLocationDataScope(scope, shipment.items.map((item) => item.locationId))
-  return shipment
+  return { ...shipment, packages: mergeShipmentPackages(shipment.packages, shipment.packageAllocations), packageAllocations: undefined }
 }
 
 export async function listReturns(input: FulfillmentQuery, scope: EffectiveDataScope = unrestrictedDataScope) {

@@ -16,6 +16,59 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 }
 
+model Warehouse {
+  id         String                   @id @default(cuid())
+  code       String                   @unique
+  name       String
+  originNote String?
+  isActive   Boolean                  @default(true)
+  layouts    WarehouseLayoutVersion[]
+  locations  InventoryLocation[]
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+}
+
+model WarehouseLayoutVersion {
+  id          String                 @id @default(cuid())
+  warehouseId String
+  warehouse   Warehouse              @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  version     Int
+  status      String                 @default("DRAFT")
+  measuredAt  DateTime?
+  publishedAt DateTime?
+  nodes       WarehouseSpatialNode[]
+  createdAt   DateTime               @default(now())
+
+  @@unique([warehouseId, version])
+  @@index([warehouseId, status])
+}
+
+model WarehouseSpatialNode {
+  id              String                 @id @default(cuid())
+  layoutVersionId String
+  layoutVersion   WarehouseLayoutVersion @relation(fields: [layoutVersionId], references: [id], onDelete: Restrict)
+  stableKey       String
+  parentId        String?
+  parent          WarehouseSpatialNode?  @relation("SpatialNodeTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children        WarehouseSpatialNode[] @relation("SpatialNodeTree")
+  kind            String
+  name            String
+  xMm             Int                    @default(0)
+  yMm             Int                    @default(0)
+  zMm             Int                    @default(0)
+  lengthMm        Int
+  widthMm         Int
+  heightMm        Int
+  yawDeg          Float                  @default(0)
+  locationId      String?
+  location        InventoryLocation?     @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  maxWeightKg     Float?
+
+  @@unique([layoutVersionId, stableKey])
+  @@unique([layoutVersionId, locationId])
+  @@index([parentId])
+}
+
 model InventoryLocation {
   id                       String                                   @id @default(cuid())
   code                     String                                   @unique
@@ -25,6 +78,11 @@ model InventoryLocation {
   isActive                 Boolean                                  @default(true)
   sortOrder                Int                                      @default(0)
   deletedAt                DateTime?
+  warehouseId              String?
+  warehouse                Warehouse?                               @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  spatialNodes             WarehouseSpatialNode[]
+  goodsPlacements          GoodsPlacement[]
+  shipmentSources          ShipmentItemSource[]
   balances                 StockLocationBalance[]
   stockLogs                StockLog[]
   materialIns              MaterialIn[]
@@ -1365,6 +1423,7 @@ model InventoryLot {
   childGenealogies            InventoryLotGenealogy[]                  @relation("InventoryLotGenealogyChild")
   createdAt                   DateTime                                 @default(now())
   updatedAt                   DateTime                                 @updatedAt
+  shipmentItemSources         ShipmentItemSource[]
 
   @@index([materialId, status])
   @@index([sourceType, sourceId])
@@ -1967,24 +2026,24 @@ model Dispatch {
 // ==================== 发货管理 ====================
 
 model Shipment {
-  id                    String                  @id @default(cuid())
-  shipmentNo            String                  @unique
+  id                    String                      @id @default(cuid())
+  shipmentNo            String                      @unique
   voucherNo             String?
   productId             String?
-  product               Product?                @relation(fields: [productId], references: [id])
+  product               Product?                    @relation(fields: [productId], references: [id])
   materialId            String?
-  material              Material?               @relation(fields: [materialId], references: [id])
+  material              Material?                   @relation(fields: [materialId], references: [id])
   locationId            String?
-  location              InventoryLocation?      @relation(fields: [locationId], references: [id])
+  location              InventoryLocation?          @relation(fields: [locationId], references: [id])
   customerId            String?
-  customerRef           Customer?               @relation(fields: [customerId], references: [id])
-  qty                   Float                   @default(0)
-  unitPrice             Float                   @default(0)
-  totalAmount           Float                   @default(0)
+  customerRef           Customer?                   @relation(fields: [customerId], references: [id])
+  qty                   Float                       @default(0)
+  unitPrice             Float                       @default(0)
+  totalAmount           Float                       @default(0)
   customer              String
   customerPhone         String?
   address               String?
-  status                String                  @default("PENDING")
+  status                String                      @default("PENDING")
   shippedAt             DateTime?
   shippedBy             String?
   deliveredAt           DateTime?
@@ -1995,9 +2054,9 @@ model Shipment {
   reversedAt            DateTime?
   reversedBy            String?
   reverseReason         String?
-  lotTraceStatus        String                  @default("PENDING")
-  shippedValuationQty   Float                   @default(0)
-  shippedCostAmount     Float                   @default(0)
+  lotTraceStatus        String                      @default("PENDING")
+  shippedValuationQty   Float                       @default(0)
+  shippedCostAmount     Float                       @default(0)
   stockUnitSnapshot     String?
   valuationUnitSnapshot String?
   conversionRateUsed    Float?
@@ -2011,8 +2070,9 @@ model Shipment {
   lotAllocations        ShipmentLotAllocation[]
   stockShortages        ShipmentStockShortage[]
   packages              PackageDocument[]
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
+  packageAllocations    ShipmentPackageAllocation[]
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
 
   @@index([materialId])
 }
@@ -2041,6 +2101,7 @@ model ShipmentItem {
   stockShortage         ShipmentStockShortage?
   returnOrders          ReturnOrder[]
   packageItems          PackageDocumentItem[]
+  goodsSources          ShipmentItemSource[]
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
 
@@ -2050,50 +2111,156 @@ model ShipmentItem {
 }
 
 model PackageDocument {
-  id          String                @id @default(cuid())
-  packageNo   String                @unique
-  shipmentId  String
-  shipment    Shipment              @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
-  status      String                @default("PACKED")
-  packedBy    String
-  packedAt    DateTime              @default(now())
-  grossWeight Float?
-  netWeight   Float?
-  weightUnit  String                @default("kg")
-  lengthMm    Float?
-  widthMm     Float?
-  heightMm    Float?
-  sealNo      String?
-  note        String?
-  deletedAt   DateTime?
-  deletedBy   String?
-  items       PackageDocumentItem[]
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  id                  String                      @id @default(cuid())
+  packageNo           String                      @unique
+  shipmentId          String?
+  shipment            Shipment?                   @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  sourceType          String                      @default("SHIPMENT")
+  packagingType       String                      @default("CARTON")
+  contentVersion      Int                         @default(1)
+  revision            Int                         @default(1)
+  productionPersonnel String?
+  qualityPersonnel    String?
+  productionDate      DateTime?
+  personnelSource     String                      @default("UNRECORDED")
+  clientRequestId     String?                     @unique
+  placement           GoodsPlacement?
+  labelRevisions      PackageLabelRevision[]
+  allocations         ShipmentPackageAllocation[]
+  status              String                      @default("PACKED")
+  packedBy            String
+  packedAt            DateTime                    @default(now())
+  grossWeight         Float?
+  netWeight           Float?
+  weightUnit          String                      @default("kg")
+  lengthMm            Float?
+  widthMm             Float?
+  heightMm            Float?
+  sealNo              String?
+  note                String?
+  deletedAt           DateTime?
+  deletedBy           String?
+  items               PackageDocumentItem[]
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
 
+  movements GoodsMovement[]
+
+  @@index([sourceType, status, deletedAt])
   @@index([shipmentId, status])
   @@index([packedAt])
 }
 
 model PackageDocumentItem {
-  id                String          @id @default(cuid())
+  id                String               @id @default(cuid())
   packageDocumentId String
-  packageDocument   PackageDocument @relation(fields: [packageDocumentId], references: [id], onDelete: Restrict)
-  shipmentItemId    String
-  shipmentItem      ShipmentItem    @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
+  packageDocument   PackageDocument      @relation(fields: [packageDocumentId], references: [id], onDelete: Restrict)
+  shipmentItemId    String?
+  shipmentItem      ShipmentItem?        @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
+  inventoryStatus   String               @default("AVAILABLE")
+  shipmentSources   ShipmentItemSource[]
   materialId        String
-  material          Material        @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  material          Material             @relation(fields: [materialId], references: [id], onDelete: Restrict)
   inventoryLotId    String?
-  inventoryLot      InventoryLot?   @relation(fields: [inventoryLotId], references: [id], onDelete: Restrict)
+  inventoryLot      InventoryLot?        @relation(fields: [inventoryLotId], references: [id], onDelete: Restrict)
   quantity          Float
   unitSnapshot      String
   lotNoSnapshot     String?
   note              String?
-  createdAt         DateTime        @default(now())
+  createdAt         DateTime             @default(now())
 
   @@index([packageDocumentId])
   @@index([shipmentItemId])
   @@index([materialId])
+  @@index([inventoryLotId])
+}
+
+// One current placement per physical load. Null coordinates mean location known, not yet surveyed.
+model GoodsPlacement {
+  id                String            @id @default(cuid())
+  packageDocumentId String            @unique
+  packageDocument   PackageDocument   @relation(fields: [packageDocumentId], references: [id], onDelete: Restrict)
+  locationId        String
+  location          InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  xMm               Int?
+  yMm               Int?
+  zMm               Int?
+  yawDeg            Float             @default(0)
+  precision         String            @default("LOCATION_ONLY")
+  revision          Int               @default(1)
+  confirmedBy       String?
+  confirmedAt       DateTime?
+  updatedAt         DateTime          @updatedAt
+
+  @@index([locationId])
+}
+
+model GoodsMovement {
+  packageDocument   PackageDocument @relation(fields: [packageDocumentId], references: [id], onDelete: Restrict)
+  id                String          @id @default(cuid())
+  packageDocumentId String
+  // Immutable before/after coordinates and layout identifiers; no quantity balance here.
+  movementType      String
+  beforeJson        String?
+  afterJson         String?
+  flowTransferId    String?
+  clientRequestId   String          @unique
+  operatedBy        String
+  createdAt         DateTime        @default(now())
+
+  @@index([packageDocumentId, createdAt])
+}
+
+model PackageLabelRevision {
+  printJobs         LabelPrintJob[]
+  id                String          @id @default(cuid())
+  packageDocumentId String
+  packageDocument   PackageDocument @relation(fields: [packageDocumentId], references: [id], onDelete: Restrict)
+  contentVersion    Int
+  templateVersion   String
+  payloadJson       String
+  createdBy         String
+  createdAt         DateTime        @default(now())
+
+  @@unique([packageDocumentId, contentVersion, templateVersion])
+}
+
+model ShipmentPackageAllocation {
+  id                String               @id @default(cuid())
+  shipmentId        String
+  shipment          Shipment             @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  packageDocumentId String
+  packageDocument   PackageDocument      @relation(fields: [packageDocumentId], references: [id], onDelete: Restrict)
+  contentVersion    Int
+  status            String               @default("RESERVED")
+  reservedBy        String
+  reservedAt        DateTime             @default(now())
+  releasedAt        DateTime?
+  sources           ShipmentItemSource[]
+
+  @@unique([shipmentId, packageDocumentId])
+  @@index([packageDocumentId, status])
+}
+
+model ShipmentItemSource {
+  id                    String                     @id @default(cuid())
+  shipmentItemId        String
+  shipmentItem          ShipmentItem               @relation(fields: [shipmentItemId], references: [id], onDelete: Restrict)
+  sourceType            String
+  allocationId          String?
+  allocation            ShipmentPackageAllocation? @relation(fields: [allocationId], references: [id], onDelete: Restrict)
+  packageDocumentItemId String?
+  packageDocumentItem   PackageDocumentItem?       @relation(fields: [packageDocumentItemId], references: [id], onDelete: Restrict)
+  inventoryLotId        String?
+  inventoryLot          InventoryLot?              @relation(fields: [inventoryLotId], references: [id], onDelete: Restrict)
+  locationId            String
+  location              InventoryLocation          @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  quantity              Float
+  status                String                     @default("RESERVED")
+  createdAt             DateTime                   @default(now())
+
+  @@index([shipmentItemId])
+  @@index([allocationId])
   @@index([inventoryLotId])
 }
 
@@ -2136,9 +2303,11 @@ model ScanCountEvent {
 }
 
 model LabelPrintJob {
-  id              String   @id @default(cuid())
-  jobNo           String   @unique
-  clientRequestId String?  @unique
+  labelRevisionId String?
+  labelRevision   PackageLabelRevision? @relation(fields: [labelRevisionId], references: [id], onDelete: Restrict)
+  id              String                @id @default(cuid())
+  jobNo           String                @unique
+  clientRequestId String?               @unique
   templateType    String
   referenceType   String
   referenceId     String
@@ -2147,11 +2316,11 @@ model LabelPrintJob {
   printerIp       String?
   labelWidthMm    Float
   labelHeightMm   Float
-  copies          Int      @default(1)
+  copies          Int                   @default(1)
   payloadJson     String?
-  status          String   @default("REQUESTED")
+  status          String                @default("REQUESTED")
   requestedBy     String?
-  requestedAt     DateTime @default(now())
+  requestedAt     DateTime              @default(now())
 
   @@index([referenceType, referenceId, requestedAt])
 }

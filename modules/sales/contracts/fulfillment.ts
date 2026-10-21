@@ -28,7 +28,7 @@ export interface ShipmentMaterialOption {
   defaultSalePrice?: number | null
   salesCurrency?: string
   primaryImage?: MaterialImage | null
-  stock?: { locationBalances: Array<{ locationId: string; availableQty: number }> } | null
+  stock?: { locationBalances: Array<{ locationId: string; availableQty: number; stockAvailableQty?: number; packedQty?: number }> } | null
 }
 
 export interface ReturnMaterialOption {
@@ -92,6 +92,8 @@ export interface Shipment {
 }
 
 export interface ShipmentItem {
+  boxQty?: number
+  looseQty?: number
   id: string
   sortOrder: number
   materialId: string
@@ -141,6 +143,7 @@ export interface CustomerMaterialDeliveryReference {
 }
 
 export interface ShipmentForm {
+  packageIds?: string[]
   customerId: string
   voucherNo: string
   trackingNo: string

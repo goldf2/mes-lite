@@ -6,6 +6,7 @@ import type { CreateReturnCommand, CreateShipmentCommand } from '../contracts/fu
 import { datedDocumentPrefix, nextDatedDocumentNo } from '../domain/sales-document-numbering'
 import { runSalesDomainOperation, SalesDomainError } from '../domain/sales-errors'
 import { assertInventoryLocationDataScope, unrestrictedDataScope, type EffectiveDataScope } from '@/modules/identity-access'
+import { loadShipmentWarehousePackages, releaseShipmentWarehousePackages, reserveShipmentWarehousePackage } from './shipment-package-allocation-service'
 
 const shipmentInclude = {
   product: { select: { id: true, name: true, sku: true, unit: true, customerId: true, customer: { select: { id: true, code: true, name: true } } } },
@@ -28,6 +29,8 @@ type PreparedShipmentItem = {
   unitSnapshot: string
   unitPrice: number
   totalAmount: number
+  looseQty: number
+  boxItems: Array<{ packageId: string; packageItemId: string; inventoryLotId: string; quantity: number }>
 }
 
 async function prepareShipmentItems(
@@ -59,15 +62,32 @@ async function prepareShipmentItems(
       unitSnapshot: material.stockUnit,
       unitPrice,
       totalAmount: input.qty * unitPrice,
+      looseQty: input.qty,
+      boxItems: [],
     })
   }
-
-  return { customer, prepared }
+  const packages = await loadShipmentWarehousePackages(tx, data.packageIds || [], customer.id, scope)
+  for (const box of packages) {
+    const locationId = box.placement!.locationId
+    for (const content of box.items) {
+      let item = prepared.find((row) => row.materialId === content.materialId && row.locationId === locationId)
+      if (!item) {
+        item = { materialId: content.materialId, productId: await resolveProductId(tx, `${materialProductPrefix}${content.materialId}`, { description: '由发货物料自动映射。' }), locationId, qty: 0, unitSnapshot: content.unitSnapshot, unitPrice: Number(content.material.defaultSalePrice || 0), totalAmount: 0, looseQty: 0, boxItems: [] }
+        prepared.push(item)
+      }
+      item.qty = Number((item.qty + Number(content.quantity)).toFixed(6))
+      item.totalAmount = item.qty * item.unitPrice
+      item.boxItems.push({ packageId: box.id, packageItemId: content.id, inventoryLotId: content.inventoryLotId!, quantity: Number(content.quantity) })
+    }
+  }
+  if (prepared.length === 0) throw new SalesDomainError('至少添加一项散货或选择一箱货物')
+  if (prepared.length > 100) throw new SalesDomainError('合并后发货明细不能超过 100 项')
+  return { customer, prepared, packages }
 }
 
-export async function createManagedShipment(data: CreateShipmentCommand, now = new Date(), scope: EffectiveDataScope = unrestrictedDataScope) {
+export async function createManagedShipment(data: CreateShipmentCommand, now = new Date(), scope: EffectiveDataScope = unrestrictedDataScope, actorName = '系统') {
   return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
-    const [{ customer, prepared }, latest] = await Promise.all([
+    const [{ customer, prepared, packages }, latest] = await Promise.all([
       prepareShipmentItems(tx, data, scope),
       tx.shipment.findFirst({
         where: { shipmentNo: { startsWith: datedDocumentPrefix('SH', now) } },
@@ -75,7 +95,7 @@ export async function createManagedShipment(data: CreateShipmentCommand, now = n
       }),
     ])
     const first = prepared[0]
-    return tx.shipment.create({
+    const shipment = await tx.shipment.create({
       data: {
         shipmentNo: nextDatedDocumentNo('SH', now, latest?.shipmentNo),
         voucherNo: data.voucherNo?.trim() || null,
@@ -107,15 +127,40 @@ export async function createManagedShipment(data: CreateShipmentCommand, now = n
       },
       include: shipmentInclude,
     })
+    const allocations = new Map<string, string>()
+    for (const box of packages) {
+      const allocation = await reserveShipmentWarehousePackage(tx, box, shipment.id, actorName)
+      allocations.set(box.id, allocation.id)
+    }
+    for (let index = 0; index < prepared.length; index += 1) {
+      const item = prepared[index]
+      const shipmentItemId = shipment.items[index].id
+      if (item.looseQty > 0) await tx.shipmentItemSource.create({ data: { shipmentItemId, sourceType: 'LOOSE', locationId: item.locationId, quantity: item.looseQty } })
+      for (const box of item.boxItems) await tx.shipmentItemSource.create({ data: { shipmentItemId, sourceType: 'BOX', allocationId: allocations.get(box.packageId)!, packageDocumentItemId: box.packageItemId, inventoryLotId: box.inventoryLotId, locationId: item.locationId, quantity: box.quantity } })
+    }
+    return shipment
   }))
 }
 
-export async function archiveManagedShipment(id: string, scope: EffectiveDataScope = unrestrictedDataScope) {
-  const before = await prisma.shipment.findUnique({ where: { id }, include: { items: { select: { locationId: true } } } })
-  if (!before || before.deletedAt) throw new SalesDomainError('发货单不存在或已归档', 404)
-  assertInventoryLocationDataScope(scope, before.items.map((item) => item.locationId))
-  const updated = await prisma.shipment.update({ where: { id }, data: { deletedAt: new Date() } })
-  return { before, updated }
+export async function archiveManagedShipment(id: string, scope: EffectiveDataScope = unrestrictedDataScope, actorName = '归档操作') {
+  return runSalesDomainOperation(() => prisma.$transaction(async (tx) => {
+    const before = await tx.shipment.findUnique({ where: { id }, include: { items: { select: { locationId: true } } } })
+    if (!before || before.deletedAt) throw new SalesDomainError('发货单不存在或已归档', 404)
+    assertInventoryLocationDataScope(scope, before.items.map((item) => item.locationId))
+    const hasWarehouseBoxes = before.status === 'PENDING' && await tx.shipmentPackageAllocation.count({ where: { shipmentId: id, status: 'RESERVED' } }) > 0
+    const now = new Date()
+    const changed = await tx.shipment.updateMany({
+      where: { id, status: before.status, updatedAt: before.updatedAt, deletedAt: null },
+      data: {
+        deletedAt: now,
+        ...(hasWarehouseBoxes ? { status: 'CANCELLED', cancelledAt: now, cancelledBy: actorName, cancelReason: '归档待发货单，释放货箱占用；恢复仅恢复历史记录' } : {}),
+      },
+    })
+    if (changed.count !== 1) throw new SalesDomainError('发货单已变化，请刷新后重试', 409)
+    const updated = await tx.shipment.findUniqueOrThrow({ where: { id } })
+    if (before.status === 'PENDING') await releaseShipmentWarehousePackages(tx, id)
+    return { before, updated }
+  }))
 }
 
 export async function createManagedReturn(input: CreateReturnCommand, now = new Date(), scope: EffectiveDataScope = unrestrictedDataScope) {

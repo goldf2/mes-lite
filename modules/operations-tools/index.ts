@@ -4,3 +4,5 @@ export { default as SawingCostCalculatorPageModule } from './ui/SawingCostCalcul
 export { default as ScanPrintPageModule } from './ui/ScanPrintPageModule'
 export { default as DocumentQrLabelDialog } from './ui/DocumentQrLabelDialog'
 export type { DocumentQrLabelData } from './ui/DocumentQrLabel'
+
+export type { DocumentQrLabelTarget } from './ui/DocumentQrLabelDialog'

@@ -11,6 +11,7 @@ const navigationGlyphs: Record<string, string> = {
   materialIn: '入',
   dispatch: '派',
   stocks: '库',
+  warehousePackages: '箱',
   dailyInventory: '报',
   inventoryCount: '盘',
   stockMovements: '流',

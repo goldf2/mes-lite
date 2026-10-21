@@ -18,7 +18,8 @@ async function main() {
     { prisma },
     { postInventoryReceipt },
     { createInventoryLotReceipt },
-    { createManagedShipment },
+    { createManagedShipment, archiveManagedShipment },
+    { purgeArchivedRecord, ArchivedRecordPurgeError },
     { shipManagedShipment, deliverManagedShipment },
     { createShipmentPackage, archiveShipmentPackage },
     { listShipmentPackages },
@@ -29,6 +30,7 @@ async function main() {
     import('../lib/inventory'),
     import('../modules/inventory'),
     import('../modules/sales/server/fulfillment-command-service'),
+    import('../modules/operations-tools/server/archived-record-purge-service'),
     import('../modules/sales/server/fulfillment-status-service'),
     import('../modules/sales/server/shipment-package-command-service'),
     import('../modules/sales/server/shipment-package-query-service'),
@@ -109,11 +111,7 @@ async function main() {
     assert.match(firstPackage.packageNo, /^BX-20260819-\d{3}$/)
     assert.equal(firstPackage.items[0]?.quantity, 2)
     assert.equal(firstPackage.items[0]?.materialId, material.id)
-    await assert.rejects(
-      () => shipManagedShipment(shipment.id, '发货验证员'),
-      (error: unknown) => error instanceof SalesDomainError && /必须与发货数量/.test(error.message),
-      '存在货箱时，货箱内容合计必须与发货数量一致',
-    )
+    assert.equal(firstPackage.items[0]?.quantity, 2, '部分装箱应保留箱内数量，剩余数量仍可作为散货发货')
 
     const packageScan = await resolveScannableDocument(firstPackage.packageNo)
     assert.equal(packageScan?.type, 'PACKAGE_DOCUMENT')
@@ -150,6 +148,18 @@ async function main() {
     const deliveredPackages = await listShipmentPackages(shipment.id)
     assert.deepEqual(deliveredPackages.map((item) => item.status), ['DELIVERED', 'DELIVERED'])
 
+    const partialShipment = await createManagedShipment({
+      customerId: customer.id,
+      items: [{ materialId: material.id, locationId: location.id, qty: 2 }],
+    }, new Date('2026-08-19T01:20:00.000Z'))
+    const partialPackage = await createShipmentPackage(partialShipment.id, {
+      shipmentItemId: partialShipment.items[0].id, quantity: 1, packedBy: '装箱验证员', weightUnit: 'kg',
+    }, '装箱验证员', new Date('2026-08-19T01:21:00.000Z'))
+    await shipManagedShipment(partialShipment.id, '发货验证员')
+    assert.equal((await prisma.shipment.findUniqueOrThrow({ where: { id: partialShipment.id } })).status, 'SHIPPED', '部分装箱加散货应能发货，不再要求装箱覆盖整单')
+    assert.equal((await prisma.packageDocument.findUniqueOrThrow({ where: { id: partialPackage.id } })).status, 'SHIPPED')
+    assert.equal((await prisma.stock.findUniqueOrThrow({ where: { materialId: material.id } })).qty, 4, '整单2件只扣一次，不能把箱内1件重复扣减')
+
     const archiveShipment = await createManagedShipment({
       customerId: customer.id,
       items: [{ materialId: material.id, locationId: location.id, qty: 1 }],
@@ -163,8 +173,10 @@ async function main() {
     await archiveShipmentPackage(archiveShipment.id, archivedCandidate.id, '装箱验证员')
     assert.equal((await listShipmentPackages(archiveShipment.id)).length, 0, '待发货货箱归档后不再参与履约')
     assert.equal(await resolveScannableDocument(archivedCandidate.packageNo), null, '归档货箱码不得继续打开单据')
+    await archiveManagedShipment(archiveShipment.id)
+    await assert.rejects(() => purgeArchivedRecord('shipment', archiveShipment.id), (error: unknown) => error instanceof ArchivedRecordPurgeError && error.status === 409, '旧发货现场箱的历史引用也必须保留，不能级联删除')
 
-    console.log('货箱单据与扫码闭环验证通过：装箱数量校验、BX/SH 解析、发货签收状态联动和归档均符合预期。')
+    console.log('货箱单据与扫码闭环验证通过：装箱数量校验、部分箱加散货、BX/SH 解析、发货签收状态联动和归档均符合预期。')
   } finally {
     await prisma.$disconnect()
     rmSync(verifyRoot, { recursive: true, force: true })

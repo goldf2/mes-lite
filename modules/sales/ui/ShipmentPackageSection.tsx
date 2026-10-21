@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react'
 import { Archive, Box, Plus, QrCode } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
 import { AttachmentPanel } from '@/modules/attachments'
-import { DocumentQrLabelDialog, type DocumentQrLabelData } from '@/modules/operations-tools'
+import { prepareWarehousePackageLabel } from '@/modules/inventory'
+import { DocumentQrLabelDialog, type DocumentQrLabelData, type DocumentQrLabelTarget } from '@/modules/operations-tools'
 import { archiveShipmentPackage } from '../client/fulfillment-api'
 import type { Shipment } from '../contracts/fulfillment'
 import type { ShipmentPackage } from '../contracts/shipment-package'
@@ -42,13 +43,16 @@ export default function ShipmentPackageSection({
   onMessage: (message: string) => void
 }) {
   const [createOpen, setCreateOpen] = useState(false)
+  const [preparingLabelId, setPreparingLabelId] = useState('')
+  const [batchLabels, setBatchLabels] = useState<DocumentQrLabelTarget[] | null>(null)
+  const warehousePackages = shipment.packages.filter((record) => record.sourceType === 'WAREHOUSE')
   const [qrTarget, setQrTarget] = useState<{
     referenceType: 'SHIPMENT' | 'PACKAGE_DOCUMENT'
     referenceId: string
     data: DocumentQrLabelData
   } | null>(null)
   const packedQty = useMemo(() => shipment.packages.reduce((sum, item) => sum + quantityOf(item), 0), [shipment.packages])
-  const packedByItem = useMemo(() => new Map(shipment.items.map((item) => [item.id, shipment.packages.reduce((sum, packageDocument) => sum + packageDocument.items.filter((row) => row.shipmentItemId === item.id).reduce((itemSum, row) => itemSum + Number(row.quantity), 0), 0)])), [shipment.items, shipment.packages])
+  const packedByItem = useMemo(() => new Map(shipment.items.map((item) => [item.id, Number(item.boxQty || 0) + shipment.packages.filter((record) => record.sourceType !== 'WAREHOUSE').reduce((sum, packageDocument) => sum + packageDocument.items.filter((row) => row.shipmentItemId === item.id).reduce((itemSum, row) => itemSum + Number(row.quantity), 0), 0)])), [shipment.items, shipment.packages])
   const packagingComplete = shipment.packages.length > 0 && shipment.items.every((item) => Math.abs((packedByItem.get(item.id) || 0) - item.qty) <= 0.000001)
   const hasUnpackedItem = shipment.items.some((item) => (packedByItem.get(item.id) || 0) < item.qty - 0.000001)
   const firstMaterialName = shipment.items[0]?.material.name || '发货明细'
@@ -64,13 +68,25 @@ export default function ShipmentPackageSection({
     },
   })
 
-  const openPackageQr = (packageDocument: ShipmentPackage) => setQrTarget({
+  const openPackageQr = async (packageDocument: ShipmentPackage) => {
+    if (packageDocument.sourceType === 'WAREHOUSE') {
+      if (preparingLabelId) return
+      setPreparingLabelId(packageDocument.id)
+      try {
+        const revision = await prepareWarehousePackageLabel(packageDocument.id)
+        if (!revision.payload) throw new Error('装箱标签内容未返回，请从库存装箱记录中重试')
+        setQrTarget({ referenceType: 'PACKAGE_DOCUMENT', referenceId: packageDocument.id, data: revision.payload })
+      } catch (error) { onMessage(error instanceof Error ? error.message : '准备装箱标签失败') }
+      finally { setPreparingLabelId('') }
+      return
+    }
+    setQrTarget({
     referenceType: 'PACKAGE_DOCUMENT',
     referenceId: packageDocument.id,
     data: {
       title: `货箱 ${packageDocument.packageNo}`,
       code: packageDocument.packageNo,
-      description: `${firstMaterialName} · 发货单 ${shipment.shipmentNo}`,
+      description: `${packageDocument.items.map((item) => `${item.material.code} ${item.material.name}`).join('；')} · 发货单 ${shipment.shipmentNo}`,
       details: [
         `内容：${packageDocument.items.map((item) => `${item.quantity} ${item.unitSnapshot}`).join('、')}`,
         `打包人：${packageDocument.packedBy}`,
@@ -79,6 +95,23 @@ export default function ShipmentPackageSection({
       ],
     },
   })
+  }
+
+  const printAllWarehouseLabels = async () => {
+    if (preparingLabelId || !warehousePackages.length) return
+    if (warehousePackages.length > 100) return onMessage('每次最多打印 100 张箱签，请分别进入装箱记录打印')
+    setPreparingLabelId('batch')
+    try {
+      const targets: DocumentQrLabelTarget[] = []
+      for (const record of warehousePackages) {
+        const revision = await prepareWarehousePackageLabel(record.id)
+        if (!revision.payload) throw new Error(`货箱 ${record.packageNo} 的标签内容未返回`)
+        targets.push({ referenceType: 'PACKAGE_DOCUMENT', referenceId: record.id, data: revision.payload })
+      }
+      setBatchLabels(targets)
+    } catch (error) { onMessage(error instanceof Error ? error.message : '准备批量箱签失败') }
+    finally { setPreparingLabelId('') }
+  }
 
   const archive = async (packageDocument: ShipmentPackage) => {
     if (!window.confirm(`确定归档货箱 ${packageDocument.packageNo} 吗？`)) return
@@ -97,10 +130,11 @@ export default function ShipmentPackageSection({
         <div>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900"><Box className="h-4 w-4" />货箱与打包单据</h3>
           <div className="mt-1 text-xs text-gray-500">
-            {shipment.packages.length === 0 ? '未启用货箱管理，发货流程仍可继续。' : `已装合计 ${packedQty}；系统按每条发货明细核对。`}
+            {shipment.packages.length === 0 ? '未启用货箱管理，发货流程仍可继续。' : `已装合计 ${packedQty}；箱内数量计入发货明细，不重复累计。`}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {warehousePackages.length > 0 && <AppButton size="sm" variant="secondary" onClick={() => void printAllWarehouseLabels()} disabled={Boolean(preparingLabelId)}><QrCode className="h-4 w-4" />批量打印本单箱签（{warehousePackages.length}）</AppButton>}
           <AppButton size="sm" variant="secondary" onClick={openShipmentQr}><QrCode className="h-4 w-4" />发货单码</AppButton>
           {canManage && shipment.status === 'PENDING' && (
             <AppButton size="sm" onClick={() => setCreateOpen(true)} disabled={!hasUnpackedItem}><Plus className="h-4 w-4" />新增货箱</AppButton>
@@ -110,7 +144,7 @@ export default function ShipmentPackageSection({
 
       {shipment.packages.length > 0 && (
         <div className={`mt-3 rounded-lg px-3 py-2 text-xs ${packagingComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>
-          {packagingComplete ? '货箱数量与发货单一致，可确认发货。' : '货箱数量尚未与发货单一致，确认发货时将被阻止。'}
+          {packagingComplete ? '货箱数量与发货单一致，可确认发货。' : '本单包含货箱和散货，其余数量按散货发出。'}
         </div>
       )}
 
@@ -129,8 +163,8 @@ export default function ShipmentPackageSection({
                   <div className="mt-1 text-xs text-gray-500">{packageDocument.packedBy} · {new Date(packageDocument.packedAt).toLocaleString('zh-CN')}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <AppButton size="sm" variant="secondary" onClick={() => openPackageQr(packageDocument)}><QrCode className="h-4 w-4" />打印箱码</AppButton>
-                  {canManage && shipment.status === 'PENDING' && (
+                  <AppButton size="sm" variant="secondary" onClick={() => void openPackageQr(packageDocument)} disabled={Boolean(preparingLabelId)}><QrCode className="h-4 w-4" />打印箱码</AppButton>
+                  {canManage && shipment.status === 'PENDING' && packageDocument.sourceType !== 'WAREHOUSE' && (
                     <AppButton size="sm" variant="danger" onClick={() => void archive(packageDocument)}><Archive className="h-4 w-4" />归档</AppButton>
                   )}
                 </div>
@@ -160,6 +194,7 @@ export default function ShipmentPackageSection({
       )}
 
       {createOpen && <ShipmentPackageCreateDialog shipment={shipment} onClose={() => setCreateOpen(false)} onCreated={onRefresh} onMessage={onMessage} />}
+      {batchLabels && <DocumentQrLabelDialog targets={batchLabels} onClose={() => setBatchLabels(null)} onMessage={onMessage} />}
       {qrTarget && <DocumentQrLabelDialog {...qrTarget} onClose={() => setQrTarget(null)} onMessage={onMessage} />}
     </section>
   )

@@ -6,7 +6,7 @@ import { createShipmentSchema } from '@/modules/sales/contracts/fulfillment-sche
 import { SalesDomainError } from '@/modules/sales/domain/sales-errors'
 import { archiveManagedShipment, createManagedShipment } from '@/modules/sales/server/fulfillment-command-service'
 import { listShipments } from '@/modules/sales/server/fulfillment-query-service'
-import { getCurrentOperator } from '@/lib/auth'
+import { getCurrentOperator, operatorDisplayName } from '@/lib/auth'
 import { DataScopeError, loadEffectiveDataScope } from '@/modules/identity-access'
 import { shipmentHistoryCsvResponse, shipmentHistoryQuery } from '@/modules/sales/server/shipment-history'
 
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     if (denied) return denied
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
-    const shipment = await createManagedShipment(createShipmentSchema.parse(await req.json()), new Date(), await loadEffectiveDataScope(operator))
+    const shipment = await createManagedShipment(createShipmentSchema.parse(await req.json()), new Date(), await loadEffectiveDataScope(operator), operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'CREATE', entityType: 'SHIPMENT', entityId: shipment.id, entityLabel: shipment.shipmentNo, afterData: shipment,
     })
@@ -58,12 +58,12 @@ export async function DELETE(req: NextRequest) {
     const operator = await getCurrentOperator()
     if (!operator) return NextResponse.json({ error: '无权限' }, { status: 403 })
     const id = z.string().trim().min(1, '缺少发货单 ID').parse(new URL(req.url).searchParams.get('id'))
-    const { before, updated } = await archiveManagedShipment(id, await loadEffectiveDataScope(operator))
+    const { before, updated } = await archiveManagedShipment(id, await loadEffectiveDataScope(operator), operatorDisplayName(operator))
     await writeAuditLog(req, {
       action: 'ARCHIVE', entityType: 'SHIPMENT', entityId: updated.id,
       entityLabel: updated.shipmentNo, beforeData: before, afterData: updated,
     })
-    return NextResponse.json({ success: true, message: '发货单已归档，可在归档记录中恢复' })
+    return NextResponse.json({ success: true, message: before.status === 'PENDING' && updated.status === 'CANCELLED' ? '发货单已取消并归档，货箱占用已释放；恢复仅恢复历史记录' : '发货单已归档，可在归档记录中恢复' })
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors[0]?.message }, { status: 400 })
     if (error instanceof SalesDomainError) return NextResponse.json({ error: error.message }, { status: error.status })

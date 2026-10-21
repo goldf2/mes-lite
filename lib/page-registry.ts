@@ -13,7 +13,7 @@ export interface PagePresentationDefinition {
 export const applicationTabs = [
   'materialInHistory', 'shipmentHistory',
   'dashboard', 'businessWorkbench', 'allFunctions', 'helpCenter', 'orders', 'materials', 'workInstructions', 'equipment', 'equipmentInspections', 'equipmentMaintenance', 'materialIn',
-  'dispatch', 'taskCollaboration', 'dailyInventory', 'stocks', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
+  'dispatch', 'taskCollaboration', 'dailyInventory', 'stocks', 'warehousePackages', 'warehouseDigitalTwin', 'inventoryCount', 'stockMovements', 'lotPanorama', 'qualityTasks', 'salesOrders', 'shipment', 'return', 'flowTransfers', 'sawingCost', 'scanPrint',
   'suppliers', 'customers', 'employees', 'processTemplates', 'processRoutes', 'archive', 'auditLogs',
   'dataTools', 'unitSettings', 'locationSettings', 'workCenters', 'documentCategories', 'businessSettings',
   'displaySettings', 'navigationSettings', 'cadPreviewSettings', 'aiSettings', 'apiSettings', 'operators', 'permissionUsers', 'permissionGroups',
@@ -51,6 +51,7 @@ export type PageRendererKey =
   | 'production-orders'
   | 'daily-inventory'
   | 'stocks'
+  | 'warehouse-packages'
   | 'warehouse-digital-twin'
   | 'inventory-count'
   | 'stock-movements'
@@ -136,6 +137,7 @@ const registeredPages = [
   registerPage({ key: 'shipmentHistory', tab: 'shipmentHistory', kind: 'utility', title: '发货历史核查', description: '按实际发货日期核查明细并导出', renderer: 'shipment-history', groupKey: 'logistics', resource: 'shipment', primaryNavigation: true, workspace: { functionKey: 'shipmentHistory', label: '发货历史核查', icon: '查' } }),
   registerPage({ key: 'return', tab: 'return', kind: 'transaction', title: '退货管理', description: '登记退货、审核并处理返库', renderer: 'return', groupKey: 'logistics', resource: 'return', primaryNavigation: true, workspace: { functionKey: 'return', label: '退货管理', icon: '退' } }),
   registerPage({ key: 'stocks', tab: 'stocks', kind: 'master-detail', title: '库存管理', description: '查看库存、库位余额和成本', renderer: 'stocks', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'stocks', label: '库存管理', icon: '库' } }),
+  registerPage({ key: 'warehousePackages', tab: 'warehousePackages', kind: 'master-detail', title: '装箱记录', description: '从库存建立装箱记录、打印货箱标签并在发货时选箱或扫码', renderer: 'warehouse-packages', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'warehousePackages', label: '装箱记录', icon: '箱' } }),
   registerPage({ key: 'warehouseDigitalTwin', tab: 'warehouseDigitalTwin', kind: 'workspace', title: '仓库全景', description: '在二维白板中查看授权库位、物料分布和库存状态', renderer: 'warehouse-digital-twin', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'warehouseDigitalTwin', label: '仓库全景', icon: '景' } }),
   registerPage({ key: 'inventoryCount', tab: 'inventoryCount', kind: 'transaction', title: '库存盘点', description: '按库位录入多种物品实盘数并整单校准账实差异', renderer: 'inventory-count', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, hostToolbarProvided: true, presentation: { content: 'page' }, workspace: { functionKey: 'inventoryCount', label: '库存盘点', icon: '盘' } }),
   registerPage({ key: 'stockMovements', tab: 'stockMovements', kind: 'transaction', title: '库存流水', description: '追踪库存、核算数量和成本的每次变化及业务来源', renderer: 'stock-movements', groupKey: 'inventory', resource: 'stocks', primaryNavigation: true, workspace: { functionKey: 'stockMovements', label: '库存流水', icon: '流' } }),

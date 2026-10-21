@@ -24,6 +24,7 @@ export async function consumeMaterialCost(
   input: {
     materialId: string
     issueStockQty: number
+    lotAllocations?: Array<{ lotId: string; stockQty: number }>
     stock: {
       id: string
       qty: number
@@ -50,20 +51,30 @@ export async function consumeMaterialCost(
     let consumedValuationQty = 0
     const layerConsumptions: CostLayerConsumptionInput[] = []
 
+    const legacyPlanLots = input.lotAllocations ? await tx.inventoryLot.findMany({
+      where: { id: { in: input.lotAllocations.map((item) => item.lotId) }, sourceType: 'LEGACY_INVENTORY' }, select: { id: true },
+    }) : []
+    // Old opening layers have no lotId. They may serve the explicitly marked loose legacy lot only.
+    const legacyLotId = legacyPlanLots[0]?.id
     const layers = await tx.inventoryCostLayer.findMany({
       where: {
         materialId: input.materialId,
         status: 'OPEN',
         inventoryStatus: 'AVAILABLE',
         remainingStockQty: { gt: 0 },
+        ...(input.lotAllocations ? { OR: [{ lotId: { in: input.lotAllocations.map((item) => item.lotId) } }, ...(legacyLotId ? [{ lotId: null }] : [])] } : {}),
       },
       orderBy: { createdAt: 'asc' },
     })
 
+    const remainingByLot = input.lotAllocations ? new Map(input.lotAllocations.map((item) => [item.lotId, item.stockQty])) : null
     for (const layer of layers) {
       if (remainingStockQty <= 0) break
+      const planLotId = layer.lotId || legacyLotId
+      const requestedFromLot = remainingByLot ? remainingByLot.get(planLotId || '') || 0 : remainingStockQty
+      if (requestedFromLot <= 0.000001) continue
       const layerStockQty = Number(layer.remainingStockQty)
-      const consumeStockQty = Math.min(layerStockQty, remainingStockQty)
+      const consumeStockQty = Math.min(layerStockQty, remainingStockQty, requestedFromLot)
       const layerRate = layerStockQty > 0 ? Number(layer.remainingValuationQty) / layerStockQty : conversionRateUsed
       const consumeValuationQty = Number((consumeStockQty * layerRate).toFixed(6))
       const consumeCost = Number((consumeStockQty * Number(layer.stockUnitCost)).toFixed(6))
@@ -84,6 +95,7 @@ export async function consumeMaterialCost(
       })
 
       remainingStockQty = Number((remainingStockQty - consumeStockQty).toFixed(6))
+      if (remainingByLot && planLotId) remainingByLot.set(planLotId, Number((requestedFromLot - consumeStockQty).toFixed(6)))
       consumedValuationQty = Number((consumedValuationQty + consumeValuationQty).toFixed(6))
       costAmount += consumeCost
       layerConsumptions.push({
