@@ -208,6 +208,7 @@ export function SearchFieldWithPresets({
   onConditionsChange,
   conditionLabel,
   submitMode = 'instant',
+  queryMode = 'smart',
   inputClassName = 'h-9 min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm sm:h-10 sm:px-4 sm:py-2',
   className = 'flex w-full min-w-[260px] max-w-[620px] flex-[1_1_420px] items-center gap-2',
 }: {
@@ -220,17 +221,19 @@ export function SearchFieldWithPresets({
   onConditionsChange?: (conditions: ResourceSearchCondition[]) => void
   conditionLabel?: string
   submitMode?: 'instant' | 'explicit'
+  queryMode?: 'smart' | 'literal'
   inputClassName?: string
   className?: string
 }) {
   const [smartSearchEnabled, setSmartSearchEnabled] = useState(true)
-  const [draftValue, setDraftValue] = useState(() => unwrapPhraseQuery(value))
+  const [draftValue, setDraftValue] = useState(() => queryMode === 'literal' ? value : unwrapPhraseQuery(value))
 
   useEffect(() => {
-    setDraftValue(smartSearchEnabled ? value : unwrapPhraseQuery(value))
-  }, [smartSearchEnabled, value])
+    setDraftValue(queryMode === 'literal' || smartSearchEnabled ? value : unwrapPhraseQuery(value))
+  }, [queryMode, smartSearchEnabled, value])
 
   useEffect(() => {
+    if (queryMode === 'literal') return
     const saved = window.localStorage.getItem(smartSearchStorageKey)
     if (saved !== 'false') return
     setSmartSearchEnabled(false)
@@ -242,15 +245,15 @@ export function SearchFieldWithPresets({
   }, [])
 
   const submitSearch = (nextValue = draftValue, enabled = smartSearchEnabled) => {
-    const normalizedValue = enabled ? nextValue : unwrapPhraseQuery(nextValue)
+    const normalizedValue = queryMode === 'literal' || enabled ? nextValue : unwrapPhraseQuery(nextValue)
     setDraftValue(normalizedValue)
-    onChange(encodeSearchQuery(normalizedValue, enabled))
+    onChange(queryMode === 'literal' ? normalizedValue : encodeSearchQuery(normalizedValue, enabled))
   }
 
   const changeSearchValue = (nextValue: string) => {
     setDraftValue(nextValue)
     if (submitMode === 'instant' || !nextValue.trim()) {
-      onChange(encodeSearchQuery(nextValue, smartSearchEnabled))
+      onChange(queryMode === 'literal' ? nextValue : encodeSearchQuery(nextValue, smartSearchEnabled))
     }
   }
 
@@ -260,7 +263,7 @@ export function SearchFieldWithPresets({
     submitSearch(draftValue, enabled)
   }
 
-  const pendingSearch = submitMode === 'explicit' && encodeSearchQuery(draftValue, smartSearchEnabled) !== value
+  const pendingSearch = submitMode === 'explicit' && (queryMode === 'literal' ? draftValue : encodeSearchQuery(draftValue, smartSearchEnabled)) !== value
 
   return (
     <div className={className}>
@@ -276,14 +279,14 @@ export function SearchFieldWithPresets({
           }}
           placeholder={placeholder}
           aria-label={placeholder}
-          className={`${inputClassName} w-full pr-24`}
+          className={`${inputClassName} w-full ${queryMode === 'smart' ? 'pr-24' : ''}`}
         />
-        <label className={`group absolute right-2 top-1/2 inline-flex -translate-y-1/2 cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition ${smartSearchEnabled ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-100'}`}>
+        {queryMode === 'smart' && <label className={`group absolute right-2 top-1/2 inline-flex -translate-y-1/2 cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium transition ${smartSearchEnabled ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-100'}`}>
           <input type="checkbox" checked={smartSearchEnabled} onChange={(event) => toggleSmartSearch(event.target.checked)} aria-label="智能搜索" className="sr-only" />
           <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
           <span>智能</span>
           <ControlTooltip label={smartSearchEnabled ? '智能搜索：空格分隔多个关键词' : '开启智能搜索'} />
-        </label>
+        </label>}
       </div>
       {submitMode === 'explicit' && (
         <button

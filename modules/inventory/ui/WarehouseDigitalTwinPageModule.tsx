@@ -1,10 +1,13 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { Boxes, RefreshCcw, Search, Warehouse } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Boxes, RefreshCcw, Warehouse } from 'lucide-react'
 import AppButton from '@/app/components/AppButton'
 import AppLoadingIndicator from '@/app/components/AppLoadingIndicator'
 import ModalDialog from '@/app/components/ModalDialog'
+import ResponsiveToolbarActions from '@/app/components/ResponsiveToolbarActions'
+import { SearchFieldWithPresets } from '@/app/components/SavedSearchPresets'
+import TopBarPortal from '@/app/components/TopBarPortal'
 import { FlowTransferQuickDialog } from '@/modules/production'
 import { loadWarehouseDigitalTwin } from '../client/warehouse-digital-twin-api'
 import type { WarehouseDigitalTwin, WarehouseTwinLocation, WarehouseTwinMaterialBalance } from '../model/warehouse-digital-twin'
@@ -31,7 +34,6 @@ export default function WarehouseDigitalTwinPageModule({
   const [twin, setTwin] = useState(emptyTwin)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [draftKeyword, setDraftKeyword] = useState('')
   const [keyword, setKeyword] = useState('')
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
@@ -63,25 +65,26 @@ export default function WarehouseDigitalTwinPageModule({
     twin.locations.find((location) => location.id === selectedLocationId) || null
   ), [selectedLocationId, twin.locations])
 
-  const submitSearch = (event?: FormEvent) => {
-    event?.preventDefault()
-    setKeyword(draftKeyword.trim())
-  }
-
   const startTransfer = (location: WarehouseTwinLocation, material: WarehouseTwinMaterialBalance) => {
     if (!material.materialId) return onMessage('该库存没有关联物料资料，不能创建流程转移')
     setTransferTarget({ sourceLocationId: location.id, materialId: material.materialId })
   }
 
   return (
+    <>
+    <TopBarPortal>
+      <ResponsiveToolbarActions
+        pageKey="warehouseDigitalTwin"
+        primaryFilters={<WarehouseTwinSearch keyword={keyword} onKeywordChange={setKeyword} />}
+      />
+    </TopBarPortal>
     <div className="min-w-0 space-y-4 p-4 lg:p-6">
-      <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-blue-700"><Warehouse size={18} /> 数字孪生仓库 MVP</div>
           <h2 className="mt-1 text-2xl font-semibold text-slate-950">库存空间白板</h2>
           <p className="mt-1 text-sm text-slate-500">使用现有库存、库位和状态事实生成只读空间视图，不建立第二套库存账。</p>
         </div>
-        <WarehouseTwinSearchForm draftKeyword={draftKeyword} keyword={keyword} onDraftKeywordChange={setDraftKeyword} onSubmit={submitSearch} onClear={() => { setDraftKeyword(''); setKeyword('') }} />
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -129,7 +132,7 @@ export default function WarehouseDigitalTwinPageModule({
           bodyClassName="flex min-h-0 flex-col !overflow-y-auto !p-4 xl:!overflow-hidden"
         >
           <div className="mb-3 shrink-0">
-            <WarehouseTwinSearchForm draftKeyword={draftKeyword} keyword={keyword} onDraftKeywordChange={setDraftKeyword} onSubmit={submitSearch} onClear={() => { setDraftKeyword(''); setKeyword('') }} />
+            <WarehouseTwinSearch keyword={keyword} onKeywordChange={setKeyword} />
           </div>
           <div className="min-h-0 flex-1">
             <WarehouseTwinBoard
@@ -158,36 +161,30 @@ export default function WarehouseDigitalTwinPageModule({
         />
       )}
     </div>
+    </>
   )
 }
 
-function WarehouseTwinSearchForm({
-  draftKeyword,
+function WarehouseTwinSearch({
   keyword,
-  onDraftKeywordChange,
-  onSubmit,
-  onClear,
+  onKeywordChange,
 }: {
-  draftKeyword: string
   keyword: string
-  onDraftKeywordChange: (keyword: string) => void
-  onSubmit: (event: FormEvent) => void
-  onClear: () => void
+  onKeywordChange: (keyword: string) => void
 }) {
   return (
-    <form className="flex min-w-0 flex-1 gap-2 xl:ml-auto xl:max-w-2xl" onSubmit={onSubmit}>
-      <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
-        <Search size={18} className="shrink-0 text-slate-400" />
-        <input
-          value={draftKeyword}
-          onChange={(event) => onDraftKeywordChange(event.target.value)}
-          className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
-          placeholder="输入物料、规格或库位，按回车搜索"
-        />
-      </label>
-      <AppButton variant="primary" type="submit">搜索</AppButton>
-      {keyword && <AppButton onClick={onClear}>清除</AppButton>}
-    </form>
+    <div className="flex w-full min-w-0 items-center gap-2">
+      <SearchFieldWithPresets
+        storageKey="mes-lite.searchPresets.warehouseDigitalTwin"
+        value={keyword}
+        onChange={onKeywordChange}
+        placeholder="搜索物料、规格或库位"
+        submitMode="explicit"
+        queryMode="literal"
+        className="flex w-full min-w-0 flex-1 items-center gap-2"
+      />
+      {keyword && <AppButton size="sm" onClick={() => onKeywordChange('')}>清除</AppButton>}
+    </div>
   )
 }
 
