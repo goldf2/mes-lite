@@ -72,6 +72,9 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Verify production route handler exports
+        run: npm run verify:production-route-exports
+
       - name: Verify application recovery drill
         run: npm run verify:application-recovery-drill
 
