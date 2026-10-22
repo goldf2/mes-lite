@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import { parseCsvFilter } from '@/lib/status-filter'
 import { materialSearchFieldKeys } from '../model/material-search-fields'
+import { materialExtensionInputSchema } from './material-extension'
+export * from './material-extension'
 
 export const materialCategories = ['RAW', 'FINISHED', 'AUXILIARY', 'SCRAP', 'DEFECTIVE', 'PACKAGING', 'OTHER'] as const
 export const materialMeasures = ['LENGTH', 'WEIGHT', 'QUANTITY', 'OTHER'] as const
-export const materialSortFields = ['createdAt', 'code', 'name', 'category', 'customer', 'spec', 'note', 'stockUnit', 'valuationUnit', 'costingMethod', 'stock', 'valuationStock', 'bomSummary'] as const
+export const materialSortFields = ['createdAt', 'code', 'name', 'category', 'customer', 'spec', 'note', 'stockUnit', 'valuationUnit', 'costingMethod', 'stock', 'valuationStock', 'bomSummary', 'materialKind', 'drawingNo', 'defaultSourceMode'] as const
 
 export const materialInputSchema = z.object({
   code: z.string().min(1, '物料编码不能为空'),
@@ -23,7 +25,7 @@ export const materialInputSchema = z.object({
   costingMethod: z.enum(['WEIGHTED_AVERAGE', 'FIFO']).optional(),
   defaultSalePrice: z.number().finite().nonnegative().nullable().optional(),
   salesCurrency: z.enum(['CNY']).optional(),
-})
+}).merge(materialExtensionInputSchema)
 
 export const materialUpdateInputSchema = materialInputSchema.extend({ id: z.string().min(1, '缺少物料 ID') })
 

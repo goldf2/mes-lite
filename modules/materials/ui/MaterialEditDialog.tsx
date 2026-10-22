@@ -7,6 +7,8 @@ import SearchableSelect from '@/app/components/SearchableSelect'
 import type { ConfiguredUnit, CustomerOption, Material, MeasureType } from '../contracts'
 import { MaterialApiError, saveMaterial, type MaterialUpsertInput } from '../client'
 import { materialCategoryOptions, primaryMeasureOptions } from '../model/material-options'
+import { createMaterialEngineeringForm, materialEngineeringInput } from '../model/material-engineering-form'
+import MaterialEngineeringFields from './MaterialEngineeringFields'
 
 interface MaterialFormState {
   code: string
@@ -91,11 +93,13 @@ export default function MaterialEditDialog({
   onSaved: () => Promise<void> | void
 }) {
   const [form, setForm] = useState<MaterialFormState>(() => createMaterialForm(material))
+  const [engineering, setEngineering] = useState(() => createMaterialEngineeringForm(material))
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setForm(createMaterialForm(material))
+    setEngineering(createMaterialEngineeringForm(material))
     setSaving(false)
   }, [material, open])
 
@@ -123,6 +127,14 @@ export default function MaterialEditDialog({
       return
     }
 
+    let extensionInput
+    try {
+      extensionInput = materialEngineeringInput(engineering)
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : '工程资料填写无效')
+      return
+    }
+
     const payload: MaterialUpsertInput = {
       code: form.code,
       name: form.name,
@@ -140,6 +152,7 @@ export default function MaterialEditDialog({
       costingMethod: form.costingMethod,
       defaultSalePrice: form.defaultSalePrice === '' ? null : Number(form.defaultSalePrice),
       salesCurrency: form.salesCurrency,
+      ...extensionInput,
     }
 
     setSaving(true)
@@ -225,7 +238,7 @@ export default function MaterialEditDialog({
                 ))}
               </select>
             </FormField>
-            <FormField label="归属客户">
+            <FormField label="适用客户" hint="用于客户专用资料归类。">
               <SearchableSelect
                 value={form.customerId}
                 onChange={(customerId) => setForm({ ...form, customerId })}
@@ -379,6 +392,8 @@ export default function MaterialEditDialog({
           )}
           <p className="text-xs text-gray-500">物料换算率只作为计划/BOM 依据；来料按主数量和本批辅助实测量核算，实测缺失时仅使用达到样本门槛的历史实测推算。</p>
         </section>
+
+        <MaterialEngineeringFields form={engineering} stockUnit={form.stockUnit} onChange={setEngineering} />
       </div>
     </ModalDialog>
   )

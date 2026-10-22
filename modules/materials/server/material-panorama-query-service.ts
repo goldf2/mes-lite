@@ -3,6 +3,7 @@ import { canonicalizeProductCodes, getProductsByMaterialId } from '@/lib/materia
 import { attachWorkInstructionFiles, classifyMaterialAttachments } from './material-panorama-attachments'
 import { panoramaProductSelect, processRouteSelect } from './material-panorama-select'
 import { resolvePanoramaCostRuns } from '../model/material-panorama-cost'
+import { materialAttributeInclude, withMaterialAttributes } from './material-attributes'
 
 export class MaterialPanoramaNotFoundError extends Error {
   constructor() {
@@ -15,6 +16,7 @@ export async function getMaterialPanorama(materialId: string) {
   const material = await prisma.material.findUnique({
     where: { id: materialId },
     include: {
+      ...materialAttributeInclude,
       customer: { select: { id: true, code: true, name: true } },
       stock: {
         include: {
@@ -174,7 +176,7 @@ export async function getMaterialPanorama(materialId: string) {
   for (const bom of productBoms) bom.latestCostRun = latestCostRunByBom.get(bom.id) || null
 
   return {
-    material,
+    material: withMaterialAttributes(material),
     stock: material.stock,
     locationBalances,
     attachments: classifyMaterialAttachments(attachments),

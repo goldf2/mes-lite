@@ -1114,3 +1114,8 @@ erDiagram
 本候选在既有 63 个权限资源之外注册 `taskCollaboration` 和 `taskCollaborationPublish`，形成 65 个资源。录入和审核角色以及普通预置岗位组对新资源默认无权，旧 `system / orders / dispatch` 授权不会自动继承；ADMIN 沿用既有全资源规则。任务范围复用 `OperatorDataScope.productionMode`：`ALL` 允许全部，`SELF` 仅允许 `assigneeEmployeeId` 等于绑定员工，`WORK_CENTERS` 仅允许 `workCenterId` 位于授权集合；未绑定员工或空工作中心集合不能借空值匹配未分配任务。关联生产订单与派工仍须分别满足其原数据范围。
 
 归档只写入 `deletedAt / deletedBy` 并增加 `revision`，不改变业务 `status`、进度、发布包及发放记录。任务自有恢复命令清空归档字段、增加 `revision` 并保留原状态。归档任务的清单和历史可在同一任务权限与范围内回溯，文件读取仍受所属任务归档守卫限制；本候选不接入统一永久删除，不提供任务永久删除接口。任务状态、发布与发放变更使用既有 `AuditLog`，在领域事务内记录操作人与对象，协同记录不写库存或财务账。
+
+
+## 统一物料与映射导入候选（2026-10-22）
+
+现有 Material 增加类型、取得方式、工程属性和十二项 mm 尺寸；MaterialPurpose 与 MaterialModelUsage 表达多值用途和机型适用，不创建第二主档。 字段、边界和接口见[统一物料主档与字段映射导入](./material-master-import.md)。

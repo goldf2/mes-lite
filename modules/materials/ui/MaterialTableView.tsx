@@ -12,6 +12,8 @@ import type {
   SortDirection,
 } from '../model/material-view'
 import { materialCategoryLabels } from '../model/material-options'
+import { materialPurposeOptions } from '../contracts/material-extension'
+import { materialKindLabels } from '../model/material-engineering-form'
 
 function ColumnResizeHandle({
   label,
@@ -156,8 +158,12 @@ export default function MaterialTableView({
             {showField('code') && sortableHeader('code', 'code', '物料编码')}
             {sortableHeader('name', 'name', '物料名称')}
             {showField('category') && sortableHeader('category', 'category', '分类')}
-            {showField('customer') && sortableHeader('customer', 'customer', '归属客户')}
+            {showField('customer') && sortableHeader('customer', 'customer', '适用客户')}
             {showField('spec') && sortableHeader('spec', 'spec', '规格')}
+            {([
+              ['drawingNo', '图号'], ['materialKind', '物料性质'], ['currentMaterial', '现用材料'],
+              ['purposeCodes', '用途'], ['modelUsages', '适用机型'],
+            ] as const).map(([key, label]) => showField(key) && <MaterialTableHeader key={key} columnKey={key} label={label} style={columns.styleFor(key)} columns={columns} />)}
             {showField('note') && sortableHeader('note', 'note', '备注')}
             {showField('stockUnit') && sortableHeader('stockUnit', 'stockUnit', '库存单位')}
             {showField('valuationUnit') && sortableHeader('valuationUnit', 'valuationUnit', '参考/计价单位')}
@@ -171,6 +177,8 @@ export default function MaterialTableView({
         <tbody className="divide-y divide-gray-100">
           {materials.map((material) => {
             const bomSummary = showBomSummary ? getBomSummary(material) : null
+            const purposes = materialPurposeOptions.filter((option) => material.purposeCodes?.includes(option.value)).map((option) => option.label).join('、')
+            const models = Array.from(new Set(material.modelUsages?.map((usage) => usage.modelCode) || [])).join('、')
             return (
               <tr key={material.id} className="align-top transition hover:bg-gray-50">
                 {showField('image') && (
@@ -189,6 +197,13 @@ export default function MaterialTableView({
                 {showField('category') && <td style={columns.styleFor('category')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{materialCategoryLabels[material.category || 'RAW'] || '其他'}</div></td>}
                 {showField('customer') && <td style={columns.styleFor('customer')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate" title={material.customer?.name || '通用/未绑定'}>{material.customer?.name || '通用/未绑定'}</div></td>}
                 {showField('spec') && <td style={columns.styleFor('spec')} className="overflow-hidden px-4 py-3 text-sm text-gray-500"><div className="truncate" title={material.spec || '-'}>{material.spec || '-'}</div></td>}
+                {([
+                  ['drawingNo', material.drawingNo],
+                  ['materialKind', material.materialKind ? materialKindLabels[material.materialKind] || material.materialKind : null],
+                  ['currentMaterial', material.currentMaterial],
+                  ['purposeCodes', purposes],
+                  ['modelUsages', models],
+                ] as const).map(([key, value]) => showField(key) && <td key={key} style={columns.styleFor(key)} className="overflow-hidden px-4 py-3 text-sm text-gray-600"><div className="truncate" title={value || '未填写'}>{value || '未填写'}</div></td>)}
                 {showField('note') && <td style={columns.styleFor('note')} className="overflow-hidden px-4 py-3 text-sm text-gray-500"><div className="line-clamp-2" title={material.note || '-'}>{material.note || '-'}</div></td>}
                 {showField('stockUnit') && <td style={columns.styleFor('stockUnit')} className="overflow-hidden px-4 py-3 text-sm"><div className="truncate">{material.stockUnit || material.unit}</div></td>}
                 {showField('valuationUnit') && (

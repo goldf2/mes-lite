@@ -59,8 +59,13 @@
           "result": "抽屉只显示当前页面且当前账号有权读取的 SOP 流程和视频；两个底部入口均在新页面打开，不中断当前业务操作。",
           "pageKey": "dashboard",
           "resource": "dashboard",
-          "roles": ["全员"],
-          "screenshot": {"baseline": "0.1.370", "file": "149-context-help-new-page.png"},
+          "roles": [
+            "全员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.370",
+            "file": "149-context-help-new-page.png"
+          },
           "lastVerifiedVersion": "0.1.389"
         },
         {
@@ -168,10 +173,11 @@
         {
           "id": "04-material-list",
           "title": "查询物料",
-          "objective": "查询物料编码、规格、单位和库存概况。",
+          "objective": "查询统一物料、图号、材质、用途、适用机型和库存概况。",
           "steps": [
             "展开“物料”功能区，进入“物料管理”。",
-            "使用顶部搜索框输入编码、名称或规格。",
+            "使用顶部搜索框输入编码、名称、图号、材质或机型，按回车或查询按钮提交；高级搜索可指定物料性质、用途、工程尺寸等字段。",
+            "打开物料详情核对图号、材质、工艺、净/毛坯尺寸（mm）及机型用量。零值按录入值显示，未知尺寸留空；仅改名称时其他工程资料保持。",
             "需要时切换列表/卡片视图，打开物料全景；左侧查看库存、BOM 和成本纵览，右侧按需展开一组档案、文档、BOM、加工成本、工单或追溯明细。",
             "在成本区域区分已绑定 BOM 的冻结成本与历史成本（唯一匹配）；无 BOM 编号且无法唯一归属的历史运行只显示待归属提示，不自动猜测。",
             "在宽屏拖动分隔条时确认右侧复杂明细仍有足够阅读空间；隐藏当前展开的明细模块后，重新显示时应保持收起。"
@@ -184,22 +190,24 @@
             "仓管员"
           ],
           "screenshot": {
-            "baseline": "0.1.350",
+            "baseline": "0.1.504",
             "file": "04-material-list.png"
           },
-          "lastVerifiedVersion": "0.1.467"
+          "lastVerifiedVersion": "0.1.504"
         },
         {
           "id": "05-material-create",
-          "title": "新建物料",
+          "title": "新建与批量导入物料",
           "objective": "建立可用于库存和生产的统一 Material 主数据。",
           "steps": [
-            "点击“新建物料”。",
-            "填写编码、名称、规格、分类、库存单位和主要计量方式。",
-            "按需要填写默认价格、安全库存和客户。",
-            "保存后返回列表复核。"
+            "点击“新建物料”；手机先打开“页面工具”。填写唯一编码、名称、分类和库存单位。",
+            "零件可选择物料性质“零件”，并按已知资料填写图号、材质、工艺、默认供给方式和十二项 mm 尺寸；未知内容可后补。用途可多选，适用机型按机型代码、部件分组、每台数量维护；空或零用量需核对，不自动成为执行 BOM。",
+            "批量资料点击“导入”，选择 XLSX 或 UTF-8 CSV；选择工作表及表头所在行，再读取预览。",
+            "逐列核对来源标题、样本和目标字段，不使用的列设为忽略。缺少库存单位列时可明确选择统一件。遇已有编码选择跳过或更新，未对应的已有字段会保留。",
+            "核对完整文件的新增、更新、跳过、错误统计及问题样本，展开查看导入值。修改工作表、表头、字段对应或策略后重新预览。错误未解决时整批不写入。",
+            "确认导入后复核列表和详情。库存数量、成本和所有权不在此处初始化；有历史库存/流水/BOM 等引用时不能经导入改计量设置。"
           ],
-          "result": "新物料可被 BOM、订单、收发货等业务选择。",
+          "result": "物料仍使用唯一 Material 主档，工程资料、用途及多机型适用可后补；文件经过对应和预览再事务提交，审计失败时整批回滚，不重复建立相同编码，不导入库存余额。",
           "pageKey": "materialManagement",
           "resource": "materials",
           "roles": [
@@ -207,10 +215,10 @@
             "仓管员"
           ],
           "screenshot": {
-            "baseline": "0.1.350",
-            "file": "05-material-create.png"
+            "baseline": "0.1.504",
+            "file": "05-material-create-import.png"
           },
-          "lastVerifiedVersion": "0.1.350"
+          "lastVerifiedVersion": "0.1.504"
         },
         {
           "id": "06-bom-workspace",
@@ -602,8 +610,14 @@
           "result": "已发布标准显示“来料入库”；只有该物料后续收货会自动转待检，未启用标准的物料保持直接可用。",
           "pageKey": "qualityTasks",
           "resource": "qualityStandards",
-          "roles": ["质量工程师", "质量主管"],
-          "screenshot": {"baseline": "0.1.373", "file": "164-incoming-quality-standard.png"},
+          "roles": [
+            "质量工程师",
+            "质量主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.373",
+            "file": "164-incoming-quality-standard.png"
+          },
           "lastVerifiedVersion": "0.1.382"
         },
         {
@@ -619,8 +633,14 @@
           "result": "质检员可读取授权库位的任务；仓管员只能完成收货，不能代替质量判定。",
           "pageKey": "qualityTasks",
           "resource": "quality",
-          "roles": ["质检员", "质量工程师"],
-          "screenshot": {"baseline": "0.1.373", "file": "167-incoming-quality-task.png"},
+          "roles": [
+            "质检员",
+            "质量工程师"
+          ],
+          "screenshot": {
+            "baseline": "0.1.373",
+            "file": "167-incoming-quality-task.png"
+          },
           "lastVerifiedVersion": "0.1.382"
         },
         {
@@ -636,8 +656,13 @@
           "result": "系统拒绝低于标准建议抽样数、项目缺失或总判定矛盾的提交。",
           "pageKey": "qualityTasks",
           "resource": "qualityDecision",
-          "roles": ["质检员"],
-          "screenshot": {"baseline": "0.1.373", "file": "168-incoming-quality-decision.png"},
+          "roles": [
+            "质检员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.373",
+            "file": "168-incoming-quality-decision.png"
+          },
           "lastVerifiedVersion": "0.1.373"
         },
         {
@@ -653,8 +678,15 @@
           "result": "同一批次待检余额归零、可用余额增加，总数量和总成本不变。",
           "pageKey": "qualityTasks",
           "resource": "quality",
-          "roles": ["质检员", "仓库主管", "质量主管"],
-          "screenshot": {"baseline": "0.1.373", "file": "169-incoming-quality-released.png"},
+          "roles": [
+            "质检员",
+            "仓库主管",
+            "质量主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.373",
+            "file": "169-incoming-quality-released.png"
+          },
           "lastVerifiedVersion": "0.1.373"
         },
         {
@@ -670,8 +702,15 @@
           "result": "趋势只统计已完成来料检验，不把待检或已随红冲取消的任务计入分母。",
           "pageKey": "qualityTasks",
           "resource": "quality",
-          "roles": ["质检员", "质量工程师", "质量主管"],
-          "screenshot": {"baseline": "0.1.373", "file": "170-incoming-quality-trend.png"},
+          "roles": [
+            "质检员",
+            "质量工程师",
+            "质量主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.373",
+            "file": "170-incoming-quality-trend.png"
+          },
           "lastVerifiedVersion": "0.1.373"
         },
         {
@@ -687,8 +726,15 @@
           "result": "同一标准编码的多个版本独立显示，只有草稿可编辑。",
           "pageKey": "qualityTasks",
           "resource": "qualityStandards",
-          "roles": ["质检员", "质量工程师", "质量主管"],
-          "screenshot": {"baseline": "0.1.372", "file": "159-quality-standard-versions.png"},
+          "roles": [
+            "质检员",
+            "质量工程师",
+            "质量主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.372",
+            "file": "159-quality-standard-versions.png"
+          },
           "lastVerifiedVersion": "0.1.424"
         },
         {
@@ -705,8 +751,13 @@
           "result": "标准以 v1 草稿建立，发布前可继续编辑。",
           "pageKey": "qualityTasks",
           "resource": "qualityStandards",
-          "roles": ["质量工程师"],
-          "screenshot": {"baseline": "0.1.372", "file": "160-quality-standard-create.png"},
+          "roles": [
+            "质量工程师"
+          ],
+          "screenshot": {
+            "baseline": "0.1.372",
+            "file": "160-quality-standard-create.png"
+          },
           "lastVerifiedVersion": "0.1.372"
         },
         {
@@ -722,8 +773,13 @@
           "result": "同物料同来源始终只有一个生效版本，历史任务快照不受影响。",
           "pageKey": "qualityTasks",
           "resource": "qualityStandards",
-          "roles": ["质量工程师"],
-          "screenshot": {"baseline": "0.1.372", "file": "161-quality-standard-release.png"},
+          "roles": [
+            "质量工程师"
+          ],
+          "screenshot": {
+            "baseline": "0.1.372",
+            "file": "161-quality-standard-release.png"
+          },
           "lastVerifiedVersion": "0.1.372"
         },
         {
@@ -738,8 +794,14 @@
           "result": "任务保留独立快照，后续发布新标准不会改写已建任务。",
           "pageKey": "qualityTasks",
           "resource": "quality",
-          "roles": ["质检员", "质量工程师"],
-          "screenshot": {"baseline": "0.1.372", "file": "157-quality-standard-task.png"},
+          "roles": [
+            "质检员",
+            "质量工程师"
+          ],
+          "screenshot": {
+            "baseline": "0.1.372",
+            "file": "157-quality-standard-task.png"
+          },
           "lastVerifiedVersion": "0.1.372"
         },
         {
@@ -755,8 +817,13 @@
           "result": "系统校验抽样下限、全部项目完整性和总判定一致性。",
           "pageKey": "qualityTasks",
           "resource": "qualityDecision",
-          "roles": ["质检员"],
-          "screenshot": {"baseline": "0.1.372", "file": "158-quality-standard-decision.png"},
+          "roles": [
+            "质检员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.372",
+            "file": "158-quality-standard-decision.png"
+          },
           "lastVerifiedVersion": "0.1.372"
         },
         {
@@ -772,8 +839,14 @@
           "result": "附件只对拥有质量任务、附件权限且在授权库位范围内的人员可见。",
           "pageKey": "qualityTasks",
           "resource": "quality",
-          "roles": ["质检员", "质量工程师"],
-          "screenshot": {"baseline": "0.1.372", "file": "162-quality-inspection-attachment.png"},
+          "roles": [
+            "质检员",
+            "质量工程师"
+          ],
+          "screenshot": {
+            "baseline": "0.1.372",
+            "file": "162-quality-inspection-attachment.png"
+          },
           "lastVerifiedVersion": "0.1.372"
         },
         {
@@ -789,8 +862,15 @@
           "result": "统计只包含已完成真实检验，超过 5000 条时明确提示截断。",
           "pageKey": "qualityTasks",
           "resource": "quality",
-          "roles": ["质检员", "质量工程师", "质量主管"],
-          "screenshot": {"baseline": "0.1.372", "file": "163-quality-trends.png"},
+          "roles": [
+            "质检员",
+            "质量工程师",
+            "质量主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.372",
+            "file": "163-quality-trends.png"
+          },
           "lastVerifiedVersion": "0.1.372"
         },
         {
@@ -1569,10 +1649,23 @@
           "id": "186-receiving-history",
           "title": "来料历史核查与导出",
           "objective": "在独立只读页面核查全部范围明细。",
-          "steps": ["进入物流 → 来料历史核查。", "选择来料日期、状态、关键词和是否包含归档，查询并统计。", "按状态和单位核对汇总，翻页查看每张单据全部明细。", "导出全部明细 CSV，用 Excel 打开；拒收、红冲不得和有效来料混算。"],
+          "steps": [
+            "进入物流 → 来料历史核查。",
+            "选择来料日期、状态、关键词和是否包含归档，查询并统计。",
+            "按状态和单位核对汇总，翻页查看每张单据全部明细。",
+            "导出全部明细 CSV，用 Excel 打开；拒收、红冲不得和有效来料混算。"
+          ],
           "result": "独立只读核查，不变更库存；CSV 不受分页限制。",
-          "pageKey": "materialInHistory", "resource": "materialIn", "roles": ["仓管员", "采购员"],
-          "screenshot": {"baseline": "0.1.350", "file": "17-receiving-list.png"},
+          "pageKey": "materialInHistory",
+          "resource": "materialIn",
+          "roles": [
+            "仓管员",
+            "采购员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.350",
+            "file": "17-receiving-list.png"
+          },
           "lastVerifiedVersion": "0.1.472"
         },
         {
@@ -1637,8 +1730,14 @@
           "result": "来料单由待收货变为已收货；受控行不会直接可用，而是生成内部批次和质量任务。",
           "pageKey": "materialIn",
           "resource": "materialIn",
-          "roles": ["仓管员", "采购员"],
-          "screenshot": {"baseline": "0.1.373", "file": "165-incoming-receipt-before.png"},
+          "roles": [
+            "仓管员",
+            "采购员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.373",
+            "file": "165-incoming-receipt-before.png"
+          },
           "lastVerifiedVersion": "0.1.382"
         },
         {
@@ -1654,8 +1753,15 @@
           "result": "待检数量参与总库存和成本，但不进入可用数量，生产领料和发货不能消费该批次。",
           "pageKey": "materialIn",
           "resource": "materialIn",
-          "roles": ["仓管员", "质检员", "库存主管"],
-          "screenshot": {"baseline": "0.1.373", "file": "166-incoming-receipt-quarantine.png"},
+          "roles": [
+            "仓管员",
+            "质检员",
+            "库存主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.373",
+            "file": "166-incoming-receipt-quarantine.png"
+          },
           "lastVerifiedVersion": "0.1.373"
         },
         {
@@ -1671,8 +1777,14 @@
           "result": "待检库存、库位余额、成本层和来料状态成套冲销；标准快照与取消记录保留审计。已不合格、部分判定或处置过的批次禁止直接红冲。",
           "pageKey": "materialIn",
           "resource": "materialIn",
-          "roles": ["仓库主管", "审计员"],
-          "screenshot": {"baseline": "0.1.373", "file": "171-incoming-reversal-cancelled.png"},
+          "roles": [
+            "仓库主管",
+            "审计员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.373",
+            "file": "171-incoming-reversal-cancelled.png"
+          },
           "lastVerifiedVersion": "0.1.373"
         },
         {
@@ -1813,8 +1925,14 @@
           "result": "账实一致行不产生空流水，差异行整单成功或全部回滚；盘点不创建生产实绩或质量记录。",
           "pageKey": "inventoryCount",
           "resource": "stocks",
-          "roles": ["仓库主管", "财务/管理"],
-          "screenshot": {"baseline": "0.1.379", "file": "21-stock-adjustment.png"},
+          "roles": [
+            "仓库主管",
+            "财务/管理"
+          ],
+          "screenshot": {
+            "baseline": "0.1.379",
+            "file": "21-stock-adjustment.png"
+          },
           "lastVerifiedVersion": "0.1.434"
         },
         {
@@ -1834,8 +1952,14 @@
           "result": "单事务扣减全部实际投入、按 FIFO 记录投入批次，并逐项登记实际产出、库位、成本和审计；BOM 仅作为可选预设。若选择成本运行，日报冻结对应成本和工艺路线快照；已确认日报不可覆盖，受控冲销保留原单、追加双向关联的反向库存流水并精确恢复原耗用批次。",
           "pageKey": "dailyInventory",
           "resource": "stocks",
-          "roles": ["生产主管", "仓库主管"],
-          "screenshot": {"baseline": "0.1.379", "file": "21-stock-adjustment.png"},
+          "roles": [
+            "生产主管",
+            "仓库主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.379",
+            "file": "21-stock-adjustment.png"
+          },
           "lastVerifiedVersion": "0.1.467"
         },
         {
@@ -1971,10 +2095,23 @@
           "id": "187-shipment-history",
           "title": "发货历史核查与导出",
           "objective": "按实际发货日期只读核对发货明细。",
-          "steps": ["进入物流 → 发货历史核查。", "选择实际发货日期、状态、关键词和归档条件；有日期范围时不包含未发货单据。", "查询全部匹配单据的状态/单位汇总，翻页查看全部单内明细。", "导出 CSV 用 Excel 核对。金额为当前单价，不是历史时点价格；退货不在此扣减。"],
+          "steps": [
+            "进入物流 → 发货历史核查。",
+            "选择实际发货日期、状态、关键词和归档条件；有日期范围时不包含未发货单据。",
+            "查询全部匹配单据的状态/单位汇总，翻页查看全部单内明细。",
+            "导出 CSV 用 Excel 核对。金额为当前单价，不是历史时点价格；退货不在此扣减。"
+          ],
           "result": "单据当前状态分列汇总，不替代库存净变动报表，不改变发货数据。",
-          "pageKey": "shipmentHistory", "resource": "shipment", "roles": ["仓管员", "销售员"],
-          "screenshot": {"baseline": "0.1.350", "file": "27-shipment-list.png"},
+          "pageKey": "shipmentHistory",
+          "resource": "shipment",
+          "roles": [
+            "仓管员",
+            "销售员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.350",
+            "file": "27-shipment-list.png"
+          },
           "lastVerifiedVersion": "0.1.472"
         },
         {
@@ -2354,7 +2491,7 @@
             "表格视图在常规桌面固定保留可读的文档标题宽度，适用产品使用紧凑摘要；文档不显示工作中心列，宽表只在自身容器横向滚动。",
             "需要共同维护元数据时，在卡片或表格勾选同一类别的多篇文档，点击“批量修改”，逐项勾选要应用的基础或扩展字段后保存；不同类别不能混合提交。",
             "需要调整某类文件的字段时，点击“字段设置”并选择类别；基础字段不可删除。扩展字段点击“编辑”：未使用时可修改名称、类型和选项，已使用时只能改名；只有未被任何文档使用的扩展字段可以删除。",
-        "点击“全屏预览”直接阅读在线正文或首个附件，并可继续切换其他附件；点击“详情”查看版本、适用范围并管理附件。进入编辑后，基础信息在预览上方按可用宽度排列，标签不得逐字换行。XLS/XLSX/ODS 使用自托管 LibreOffice 核心查看器直接打开。DWG/DXF 通过内部 CAD 服务排队生成只读 PDF；具备维护权限时可点击“重新生成预览”重建 PDF 与缩略图，原图保持不变。图纸异常时由管理员进入“系统设置 > 文件预览”，检查 LibreDWG、ACadSharp、QCAD 可用状态并切换自动或指定引擎后重新生成；QCAD 只有服务器已合法安装和配置时可用。缺字时把已授权字体放入转换器外挂目录并重启；服务会受控修正目录权限、立即降权，并在健康检查显示路径所有者和有效权限。随后重新生成旧预览；预览服务异常时下载原文件。"
+            "点击“全屏预览”直接阅读在线正文或首个附件，并可继续切换其他附件；点击“详情”查看版本、适用范围并管理附件。进入编辑后，基础信息在预览上方按可用宽度排列，标签不得逐字换行。XLS/XLSX/ODS 使用自托管 LibreOffice 核心查看器直接打开。DWG/DXF 通过内部 CAD 服务排队生成只读 PDF；具备维护权限时可点击“重新生成预览”重建 PDF 与缩略图，原图保持不变。图纸异常时由管理员进入“系统设置 > 文件预览”，检查 LibreDWG、ACadSharp、QCAD 可用状态并切换自动或指定引擎后重新生成；QCAD 只有服务器已合法安装和配置时可用。缺字时把已授权字体放入转换器外挂目录并重启；服务会受控修正目录权限、立即降权，并在健康检查显示路径所有者和有效权限。随后重新生成旧预览；预览服务异常时下载原文件。"
           ],
           "result": "文档标题和编辑字段保持可读宽度；同类别文档可只覆盖明确选择的共同字段，类别扩展字段可安全编辑并受使用保护；全屏预览与详情职责分离，CAD 派生预览按引擎隔离缓存、可由获权人员手动重建且不改原图。",
           "pageKey": "workInstructions",
@@ -2367,7 +2504,7 @@
             "baseline": "0.1.350",
             "file": "33-document-list.png"
           },
-      "lastVerifiedVersion": "0.1.431"
+          "lastVerifiedVersion": "0.1.431"
         },
         {
           "id": "34-document-create",
@@ -2376,8 +2513,8 @@
           "steps": [
             "单篇建档点击“新建文档”；同类图纸批量建档点击“批量导入”，一次选择最多 50 个文件。",
             "关联物料、类别、版本、工作中心，并按所选类别填写扩展字段；可搜索选择器既可点击输入框输入筛选，也可点击右侧箭头展开或收起；普通新增也可填写在线正文。",
-        "确认批量导入中的每个文件会独立创建一篇文档并保留原始附件，再提交。",
-        "保存后在列表逐篇复核状态；CAD 缩略图会延迟加载并按受控并发排队转换，不要连续重复刷新。批量导入存在部分失败时按文件名处理失败项。"
+            "确认批量导入中的每个文件会独立创建一篇文档并保留原始附件，再提交。",
+            "保存后在列表逐篇复核状态；CAD 缩略图会延迟加载并按受控并发排队转换，不要连续重复刷新。批量导入存在部分失败时按文件名处理失败项。"
           ],
           "result": "单篇文档和批量导入的每篇文档均可独立检索、维护分类字段并保留原始附件。",
           "pageKey": "workInstructions",
@@ -2390,7 +2527,7 @@
             "baseline": "0.1.350",
             "file": "34-document-create.png"
           },
-      "lastVerifiedVersion": "0.1.429"
+          "lastVerifiedVersion": "0.1.429"
         },
         {
           "id": "35-equipment-list",
@@ -2448,8 +2585,13 @@
           "result": "设备转为“故障”，时间线保留原状态、原因、操作人和发生时间。",
           "pageKey": "equipment",
           "resource": "equipmentEvents",
-          "roles": ["设备维护员"],
-          "screenshot": {"baseline": "0.1.369", "file": "143-equipment-fault-command.png"},
+          "roles": [
+            "设备维护员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.369",
+            "file": "143-equipment-fault-command.png"
+          },
           "lastVerifiedVersion": "0.1.369"
         },
         {
@@ -2465,8 +2607,14 @@
           "result": "设备回到“可用”；故障事件记录从故障发生到恢复的持续时间，恢复事件不重复计算。",
           "pageKey": "equipment",
           "resource": "equipment",
-          "roles": ["设备维护员", "生产主管"],
-          "screenshot": {"baseline": "0.1.369", "file": "144-equipment-event-timeline.png"},
+          "roles": [
+            "设备维护员",
+            "生产主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.369",
+            "file": "144-equipment-event-timeline.png"
+          },
           "lastVerifiedVersion": "0.1.369"
         },
         {
@@ -2482,8 +2630,14 @@
           "result": "页面只显示当前账号工作中心范围内的点检计划，到期任务可直接执行。",
           "pageKey": "equipmentInspections",
           "resource": "equipmentInspections",
-          "roles": ["设备维护员", "生产主管"],
-          "screenshot": {"baseline": "0.1.370", "file": "145-equipment-inspection-due-tasks.png"},
+          "roles": [
+            "设备维护员",
+            "生产主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.370",
+            "file": "145-equipment-inspection-due-tasks.png"
+          },
           "lastVerifiedVersion": "0.1.424"
         },
         {
@@ -2499,8 +2653,13 @@
           "result": "新计划进入到期任务或全部计划；项目清单保存后只能暂停或恢复计划，不能覆盖历史标准。",
           "pageKey": "equipmentInspections",
           "resource": "equipmentInspections",
-          "roles": ["设备维护员"],
-          "screenshot": {"baseline": "0.1.370", "file": "146-equipment-inspection-create-plan.png"},
+          "roles": [
+            "设备维护员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.370",
+            "file": "146-equipment-inspection-create-plan.png"
+          },
           "lastVerifiedVersion": "0.1.370"
         },
         {
@@ -2516,8 +2675,13 @@
           "result": "系统一次保存全部项目、点检人、到期周期与审计记录，并把下次到期时间推进一个周期。",
           "pageKey": "equipmentInspections",
           "resource": "equipmentInspections",
-          "roles": ["设备维护员"],
-          "screenshot": {"baseline": "0.1.370", "file": "147-equipment-inspection-complete.png"},
+          "roles": [
+            "设备维护员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.370",
+            "file": "147-equipment-inspection-complete.png"
+          },
           "lastVerifiedVersion": "0.1.370"
         },
         {
@@ -2533,8 +2697,14 @@
           "result": "异常点检记录不可改写；设备原为可用或运行中时，同一事务生成故障事件，附件继承点检与工作中心权限。",
           "pageKey": "equipmentInspections",
           "resource": "equipmentInspections",
-          "roles": ["设备维护员", "生产主管"],
-          "screenshot": {"baseline": "0.1.370", "file": "148-equipment-inspection-abnormal-history.png"},
+          "roles": [
+            "设备维护员",
+            "生产主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.370",
+            "file": "148-equipment-inspection-abnormal-history.png"
+          },
           "lastVerifiedVersion": "0.1.370"
         },
         {
@@ -2550,8 +2720,14 @@
           "result": "页面只显示当前账号工作中心范围内的保养计划；同一计划和到期周期不会重复生成活动工单。",
           "pageKey": "equipmentMaintenance",
           "resource": "equipmentMaintenance",
-          "roles": ["设备维护员", "生产主管"],
-          "screenshot": {"baseline": "0.1.371", "file": "151-equipment-maintenance-due-plans.png"},
+          "roles": [
+            "设备维护员",
+            "生产主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.371",
+            "file": "151-equipment-maintenance-due-plans.png"
+          },
           "lastVerifiedVersion": "0.1.424"
         },
         {
@@ -2567,8 +2743,13 @@
           "result": "计划进入到期或全部计划；项目清单保存后只能暂停或恢复计划，不能覆盖历史工单标准。",
           "pageKey": "equipmentMaintenance",
           "resource": "equipmentMaintenance",
-          "roles": ["设备维护员"],
-          "screenshot": {"baseline": "0.1.371", "file": "152-equipment-maintenance-create-plan.png"},
+          "roles": [
+            "设备维护员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.371",
+            "file": "152-equipment-maintenance-create-plan.png"
+          },
           "lastVerifiedVersion": "0.1.371"
         },
         {
@@ -2584,8 +2765,13 @@
           "result": "系统创建待处理维修工单；原为可用或运行中的设备同时进入故障状态并保留故障事件。",
           "pageKey": "equipmentMaintenance",
           "resource": "equipmentMaintenance",
-          "roles": ["设备维护员"],
-          "screenshot": {"baseline": "0.1.371", "file": "153-equipment-maintenance-create-repair.png"},
+          "roles": [
+            "设备维护员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.371",
+            "file": "153-equipment-maintenance-create-repair.png"
+          },
           "lastVerifiedVersion": "0.1.371"
         },
         {
@@ -2601,8 +2787,13 @@
           "result": "工单记录开始人和开始时间，设备事件链增加进入维修状态的事件。",
           "pageKey": "equipmentMaintenance",
           "resource": "equipmentMaintenance",
-          "roles": ["设备维护员"],
-          "screenshot": {"baseline": "0.1.371", "file": "154-equipment-maintenance-start-work-order.png"},
+          "roles": [
+            "设备维护员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.371",
+            "file": "154-equipment-maintenance-start-work-order.png"
+          },
           "lastVerifiedVersion": "0.1.371"
         },
         {
@@ -2618,8 +2809,13 @@
           "result": "工单完成、设备恢复可用；备件按可用批次扣减库存并形成库存流水、成本金额和批次分配。",
           "pageKey": "equipmentMaintenance",
           "resource": "equipmentMaintenance",
-          "roles": ["设备维护员"],
-          "screenshot": {"baseline": "0.1.371", "file": "155-equipment-maintenance-complete-with-spare.png"},
+          "roles": [
+            "设备维护员"
+          ],
+          "screenshot": {
+            "baseline": "0.1.371",
+            "file": "155-equipment-maintenance-complete-with-spare.png"
+          },
           "lastVerifiedVersion": "0.1.371"
         },
         {
@@ -2635,8 +2831,15 @@
           "result": "完成工单、设备恢复事件、备件库存流水、成本和批次分配可相互追溯，完成事实不可覆盖。",
           "pageKey": "equipmentMaintenance",
           "resource": "equipmentMaintenance",
-          "roles": ["设备维护员", "生产主管", "仓库主管"],
-          "screenshot": {"baseline": "0.1.371", "file": "156-equipment-maintenance-completed-history.png"},
+          "roles": [
+            "设备维护员",
+            "生产主管",
+            "仓库主管"
+          ],
+          "screenshot": {
+            "baseline": "0.1.371",
+            "file": "156-equipment-maintenance-completed-history.png"
+          },
           "lastVerifiedVersion": "0.1.371"
         }
       ]
@@ -4278,18 +4481,18 @@
           "lastVerifiedVersion": "0.1.362"
         },
         {
-      "id": "141-application-recovery-drill",
-      "title": "执行应用级恢复演练",
-      "objective": "在不改写在线生产和源候选的前提下，先收敛恢复候选的 Schema 漂移，再证明它能启动隔离应用并通过关键业务抽查。",
-      "steps": [
-        "准备已验证的恢复候选数据库和附件目录，固定目标 Git 提交，并确认所有输出路径不存在。",
-        "执行 npm run audit:production-schema-drift，核对源证据哈希未变、目标迁移基线正确，并保存不可覆盖的 JSON 报告。",
-        "如审计返回漂移，先审批历史数据处置，再执行 npm run prepare:production-schema-reconciliation，生成退役结构归档和非覆盖收敛候选。",
-        "只有候选后置审计为 NO_SCHEMA_DRIFT时，才执行 npm run storage:drill:application，填写数据库、附件、目标、报告、环境、备份创建时间和操作人。",
-        "等待全附件哈希、迁移、readiness、临时管理员登录、物料/库存/生产单和附件原文件抽查完成。",
-        "核对 Schema 和应用报告：所有技术检查为 PASS、RPO/RTO 分别判定，临时管理员已清理，且源候选 SHA-256 全程未变。"
-      ],
-      "result": "Schema 收敛候选的后置审计为零漂移，隔离应用检查全部通过，且在线生产和源候选未被改写。备份超过 24 小时时 RPO 必须判定失败；异地副本与真实 Coolify 挂载切换仍单独验收。",
+          "id": "141-application-recovery-drill",
+          "title": "执行应用级恢复演练",
+          "objective": "在不改写在线生产和源候选的前提下，先收敛恢复候选的 Schema 漂移，再证明它能启动隔离应用并通过关键业务抽查。",
+          "steps": [
+            "准备已验证的恢复候选数据库和附件目录，固定目标 Git 提交，并确认所有输出路径不存在。",
+            "执行 npm run audit:production-schema-drift，核对源证据哈希未变、目标迁移基线正确，并保存不可覆盖的 JSON 报告。",
+            "如审计返回漂移，先审批历史数据处置，再执行 npm run prepare:production-schema-reconciliation，生成退役结构归档和非覆盖收敛候选。",
+            "只有候选后置审计为 NO_SCHEMA_DRIFT时，才执行 npm run storage:drill:application，填写数据库、附件、目标、报告、环境、备份创建时间和操作人。",
+            "等待全附件哈希、迁移、readiness、临时管理员登录、物料/库存/生产单和附件原文件抽查完成。",
+            "核对 Schema 和应用报告：所有技术检查为 PASS、RPO/RTO 分别判定，临时管理员已清理，且源候选 SHA-256 全程未变。"
+          ],
+          "result": "Schema 收敛候选的后置审计为零漂移，隔离应用检查全部通过，且在线生产和源候选未被改写。备份超过 24 小时时 RPO 必须判定失败；异地副本与真实 Coolify 挂载切换仍单独验收。",
           "pageKey": "dataTools",
           "resource": "dataTools",
           "roles": [
@@ -4299,7 +4502,7 @@
             "baseline": "0.1.377",
             "file": "141-application-recovery-drill.png"
           },
-      "lastVerifiedVersion": "0.1.377"
+          "lastVerifiedVersion": "0.1.377"
         },
         {
           "id": "142-product-material-preflight",
