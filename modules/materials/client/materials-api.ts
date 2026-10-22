@@ -1,3 +1,5 @@
+import type { MaterialExtensionInput } from '../contracts/material-extension'
+import type { MaterialImportOptions, MaterialImportPreview } from '../contracts/material-import'
 import type { ConfiguredUnit, CustomerOption, Material, MeasureType, PaginationState } from '../contracts'
 import type { AttachmentItem, PanoramaData } from '../contracts/material-panorama'
 import { setAttachmentRotation } from '@/modules/attachments'
@@ -10,7 +12,7 @@ interface ApiEnvelope<T> {
   pagination?: PaginationState
 }
 
-export interface MaterialUpsertInput {
+export interface MaterialUpsertInput extends MaterialExtensionInput {
   code: string
   name: string
   spec: string
@@ -92,9 +94,10 @@ export async function archiveMaterial(materialId: string) {
   return body.message || '归档成功'
 }
 
-export async function importMaterials(file: File, mode: 'skip' | 'update') {
+export async function importMaterials(file: File, mode: 'skip' | 'update', options: MaterialImportOptions = {}) {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('options', JSON.stringify({ ...options, mode }))
   const response = await fetch(`/api/materials/import?mode=${mode}`, {
     method: 'POST',
     body: formData,
@@ -138,4 +141,14 @@ export async function downloadMaterialFile(url: string, fallbackFilename = 'mate
   link.click()
   link.remove()
   URL.revokeObjectURL(href)
+}
+
+export async function previewMaterialImport(file: File, options: MaterialImportOptions = {}): Promise<MaterialImportPreview> {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('options', JSON.stringify(options))
+  const response = await fetch('/api/materials/import/preview', { method: 'POST', body: formData })
+  const body = await readApiEnvelope<MaterialImportPreview>(response, '读取导入预览失败')
+  if (!body.data) throw new MaterialApiError('导入预览为空')
+  return body.data
 }

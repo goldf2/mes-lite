@@ -1,4 +1,5 @@
 import type { AttachmentPreviewKind } from '@/lib/attachment-file-types'
+import type { MaterialExtensionInput } from './material-extension'
 
 export interface AttachmentItem {
   id: string
@@ -37,7 +38,7 @@ export interface StockSummary {
   stockUnitCost: number
 }
 
-export interface MaterialSummary {
+export interface MaterialSummary extends MaterialExtensionInput {
   id: string
   code: string
   name: string

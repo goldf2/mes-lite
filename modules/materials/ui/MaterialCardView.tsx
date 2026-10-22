@@ -3,6 +3,8 @@
 import type { Material } from '../contracts'
 import type { MaterialBomSummary, MaterialCollectionActions, MaterialVisibleField } from '../model/material-view'
 import { materialCategoryLabels } from '../model/material-options'
+import { materialPurposeOptions } from '../contracts/material-extension'
+import { materialKindLabels } from '../model/material-engineering-form'
 
 export default function MaterialCardView({
   materials,
@@ -25,6 +27,8 @@ export default function MaterialCardView({
     <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {materials.map((material) => {
         const bomSummary = showBomSummary ? getBomSummary(material) : null
+        const purposes = materialPurposeOptions.filter((option) => material.purposeCodes?.includes(option.value)).map((option) => option.label).join('、')
+        const models = Array.from(new Set(material.modelUsages?.map((usage) => usage.modelCode) || [])).join('、')
         return (
           <article key={material.id} className="group flex min-h-[218px] flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:border-blue-300 hover:shadow-sm sm:shadow-none">
             <div className="flex min-w-0 gap-3">
@@ -49,6 +53,13 @@ export default function MaterialCardView({
                 </div>
                 <div className="mt-1 line-clamp-1 text-sm font-semibold text-gray-900" title={material.name}>{material.name}</div>
                 {showField('spec') && <div className="mt-0.5 truncate text-sm text-gray-500">{material.spec || '无规格'}</div>}
+                {([
+                  ['drawingNo', '图号', material.drawingNo],
+                  ['materialKind', '性质', material.materialKind ? materialKindLabels[material.materialKind] || material.materialKind : null],
+                  ['currentMaterial', '现用材料', material.currentMaterial],
+                  ['purposeCodes', '用途', purposes],
+                  ['modelUsages', '适用机型', models],
+                ] as const).map(([key, label, value]) => showField(key) && <div key={key} className="mt-0.5 truncate text-xs text-gray-500" title={value || '未填写'}>{label}：{value || '未填写'}</div>)}
                 {showField('note') && material.note && <div className="mt-0.5 line-clamp-2 text-xs text-gray-500">备注：{material.note}</div>}
                 {showField('customer') && <div className="mt-0.5 truncate text-xs text-gray-500">客户：{material.customer?.name || '通用/未绑定'}</div>}
               </div>

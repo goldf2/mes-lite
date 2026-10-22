@@ -1,3 +1,5 @@
+import type { MaterialExtensionInput } from './material-extension'
+
 export type MeasureType = 'LENGTH' | 'WEIGHT' | 'QUANTITY' | 'OTHER'
 
 export interface MaterialImage {
@@ -19,7 +21,7 @@ export interface MaterialReference {
   primaryImage?: MaterialImage | null
 }
 
-export interface Material {
+export interface Material extends MaterialExtensionInput {
   id: string
   code: string
   name: string

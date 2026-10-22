@@ -4,6 +4,7 @@ import { findCatalogUnit, getUnitCatalog } from '@/lib/unit-catalog'
 import { prisma } from '@/lib/prisma'
 import { syncProductForMaterial } from '@/lib/material-product'
 import type { MaterialInput, MaterialUpdateInput } from '../contracts/material-schema'
+import { materialAttributeInclude, materialExtensionData, withMaterialAttributes } from './material-attributes'
 
 type AuditContext = Parameters<typeof createAuditLog>[1]
 
@@ -70,7 +71,7 @@ async function assertCodeAvailable(code: string, currentId?: string) {
 }
 
 export async function createMaterial(input: MaterialInput) {
-  const data = materialData(input)
+  const data = { ...materialData(input), ...materialExtensionData(input, 'create') }
   await validateConfiguredMaterialUnits({
     primaryMeasure: data.primaryMeasure,
     stockUnit: data.stockUnit,
@@ -79,9 +80,9 @@ export async function createMaterial(input: MaterialInput) {
   })
   await assertCodeAvailable(input.code)
   return prisma.$transaction(async (tx) => {
-    const material = await tx.material.create({ data })
+    const material = await tx.material.create({ data, include: materialAttributeInclude })
     await tx.stock.create({ data: { materialId: material.id } })
-    return material
+    return withMaterialAttributes(material)
   })
 }
 
@@ -90,9 +91,13 @@ export async function updateMaterial(
   getAuditContext: () => Promise<AuditContext>,
 ) {
   await assertCodeAvailable(input.code, input.id)
-  const before = await prisma.material.findUnique({ where: { id: input.id }, include: { stock: true, _count: { select: { bomItems: true } } } })
+  const before = await prisma.material.findUnique({ where: { id: input.id }, include: { ...materialAttributeInclude, stock: true, _count: { select: { bomItems: true } } } })
   if (!before) throw new MaterialNotFoundError()
   const data = materialData(input, before)
+  const effectiveModelUsages = input.modelUsages ?? before.modelUsages
+  if (before.stockUnit !== data.stockUnit && effectiveModelUsages.length > 0) {
+    throw new MaterialInputError('物料已有适用机型用量，不能直接变更库存单位；请先核对并清空用量，变更单位后重新录入')
+  }
   await validateConfiguredMaterialUnits({
     primaryMeasure: data.primaryMeasure,
     stockUnit: data.stockUnit,
@@ -109,7 +114,8 @@ export async function updateMaterial(
     await syncProductForMaterial(tx, before, { ...before, ...data })
     const updated = await tx.material.update({
       where: { id: input.id },
-      data: { ...data, unitVersion: unitsChanged ? { increment: 1 } : undefined },
+      data: { ...data, ...materialExtensionData(input, 'update'), unitVersion: unitsChanged ? { increment: 1 } : undefined },
+      include: materialAttributeInclude,
     })
     await tx.stock.upsert({ where: { materialId: updated.id }, update: {}, create: { materialId: updated.id } })
     if (auditContext) {
@@ -128,7 +134,7 @@ export async function updateMaterial(
         note: '修改物料计量设置；未换算任何数值，也未改写历史单据、库存流水、成本层或既有 BOM',
       })
     }
-    return updated
+    return withMaterialAttributes(updated)
   })
   return { before, material, unitsChanged }
 }

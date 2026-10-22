@@ -10,8 +10,8 @@
 
 | 目录 | 本地候选数量 | 归属与边界 |
 | --- | --- | --- |
-| `modules/` | 648 个 TypeScript/TSX 文件 | 共19个现有模块，不新增有状态容器领域或平行打印框架 |
-| `app/api/` | 192 个 `route.ts` | 六个新增仓库装箱适配器，数据/事务在领域服务 |
+| `modules/` | 657 个 TypeScript/TSX 文件 | 共19个现有模块，不新增有状态容器领域或平行打印框架 |
+| `app/api/` | 193 个 `route.ts` | 六个新增仓库装箱适配器，数据/事务在领域服务 |
 | `lib/page-registry.ts` | 54 个页面定义 | 新 warehousePackages，沿用 stocks 读取及库位范围 |
 
 

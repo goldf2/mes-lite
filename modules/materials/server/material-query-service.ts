@@ -8,8 +8,11 @@ import { tokenizeKeywordQuery } from '@/lib/resource-search'
 import { getSystemSettings } from '@/lib/system-settings'
 import type { MaterialAdvancedCondition, MaterialListQuery } from '../contracts/material-schema'
 import { materialCategoryFilterOptions } from '../model/material-options'
+import { materialAttributeInclude, withMaterialAttributes } from './material-attributes'
+import { materialBooleanFields, materialDimensionFields, materialEngineeringTextFields, materialPurposeOptions } from '../contracts/material-extension'
 
 const materialInclude = {
+  ...materialAttributeInclude,
   stock: {
     select: {
       qty: true, reservedQty: true, availableQty: true, valuationQty: true,
@@ -52,7 +55,7 @@ function numberCondition(condition: MaterialAdvancedCondition) {
   return { equals: value }
 }
 
-function buildMaterialWhere(query: MaterialListQuery): Prisma.MaterialWhereInput {
+export function buildMaterialWhere(query: MaterialListQuery): Prisma.MaterialWhereInput {
   const where: Prisma.MaterialWhereInput = { deletedAt: null }
   const andFilters: Prisma.MaterialWhereInput[] = []
   if (query.categories.length === 1) where.category = query.categories[0]
@@ -62,10 +65,19 @@ function buildMaterialWhere(query: MaterialListQuery): Prisma.MaterialWhereInput
   else if (query.customerId) where.customerId = query.customerId
   andFilters.push(...getBomStatusRelationFilters(query.bomStatus) as Prisma.MaterialWhereInput[])
   for (const condition of query.advancedConditions) {
-    if (['code', 'name', 'spec', 'unit', 'stockUnit', 'valuationUnit', 'conversionNote', 'note'].includes(condition.field)) {
+    if (['code', 'name', 'spec', 'unit', 'stockUnit', 'valuationUnit', 'conversionNote', 'note', ...materialEngineeringTextFields].includes(condition.field)) {
       andFilters.push({ [condition.field]: stringCondition(condition) } as Prisma.MaterialWhereInput)
-    } else if (['category', 'primaryMeasure', 'referenceMeasure', 'costingMethod', 'salesCurrency'].includes(condition.field)) {
+    } else if (['category', 'primaryMeasure', 'referenceMeasure', 'costingMethod', 'salesCurrency', 'materialKind', 'defaultSourceMode'].includes(condition.field)) {
       andFilters.push({ [condition.field]: condition.value } as Prisma.MaterialWhereInput)
+    } else if (condition.field === 'purposeCodes') {
+      andFilters.push({ purposes: { some: { purposeCode: condition.value } } })
+    } else if (condition.field === 'modelCode' || condition.field === 'assemblyName') {
+      andFilters.push({ modelUsages: { some: { [condition.field]: stringCondition(condition) } } })
+    } else if (condition.field === 'quantityPerMachine') {
+      const filter = numberCondition(condition)
+      if (filter) andFilters.push({ modelUsages: { some: { quantityPerMachine: filter } } })
+    } else if (materialBooleanFields.some((field) => field === condition.field)) {
+      if (condition.value === 'true' || condition.value === 'false') andFilters.push({ [condition.field]: condition.value === 'true' })
     } else if (condition.field === 'customerId') {
       andFilters.push({ customerId: condition.value === '__UNASSIGNED__' ? null : condition.value })
     } else if (condition.field === 'bomStatus') {
@@ -73,7 +85,7 @@ function buildMaterialWhere(query: MaterialListQuery): Prisma.MaterialWhereInput
     } else if (condition.field === 'createdAt') {
       const filter = dateCondition(condition)
       if (filter) andFilters.push({ createdAt: filter })
-    } else if (condition.field === 'conversionRate' || condition.field === 'defaultSalePrice') {
+    } else if (condition.field === 'conversionRate' || condition.field === 'defaultSalePrice' || materialDimensionFields.some((field) => field === condition.field)) {
       const filter = numberCondition(condition)
       if (filter) andFilters.push({ [condition.field]: filter } as Prisma.MaterialWhereInput)
     } else if (['stockQty', 'availableQty', 'valuationQty', 'totalCost'].includes(condition.field)) {
@@ -89,12 +101,18 @@ function buildMaterialWhere(query: MaterialListQuery): Prisma.MaterialWhereInput
     { name: { contains: token } }, { code: { contains: token } }, { spec: { contains: token } }, { note: { contains: token } },
     { unit: { contains: token } }, { stockUnit: { contains: token } }, { valuationUnit: { contains: token } },
     { conversionNote: { contains: token } }, { salesCurrency: { contains: token } },
+    ...materialEngineeringTextFields.map((field) => ({ [field]: { contains: token } })),
+    { modelUsages: { some: { OR: [{ modelCode: { contains: token } }, { assemblyName: { contains: token } }] } } },
+    { purposes: { some: { purposeCode: { contains: token } } } },
+    ...materialPurposeOptions.filter((option) => option.label.includes(token)).map((option) => ({ purposes: { some: { purposeCode: option.value } } })),
+    ...[{ value: 'GENERAL', label: '通用物料' }, { value: 'PART', label: '零件' }].filter((option) => option.label.includes(token) || option.value === token).map((option) => ({ materialKind: option.value })),
+    ...[{ value: 'MAKE', label: '自制' }, { value: 'BUY', label: '外购' }, { value: 'SUBCONTRACT', label: '委外' }].filter((option) => option.label.includes(token) || option.value === token).map((option) => ({ defaultSourceMode: option.value })),
     { customer: { is: { code: { contains: token } } } }, { customer: { is: { name: { contains: token } } } },
     ...materialCategoryFilterOptions.filter((option) => option.label.includes(token)).map((option) => ({ category: option.value })),
     ...[{ value: 'LENGTH', label: '长度' }, { value: 'WEIGHT', label: '重量' }, { value: 'QUANTITY', label: '数量' }, { value: 'OTHER', label: '其他' }].filter((option) => option.label.includes(token)).flatMap((option) => [{ primaryMeasure: option.value }, { referenceMeasure: option.value }]),
     ...[{ value: 'WEIGHTED_AVERAGE', label: '加权平均' }, { value: 'FIFO', label: '先进先出' }].filter((option) => option.label.includes(token)).map((option) => ({ costingMethod: option.value })),
     ...('人民币'.includes(token) ? [{ salesCurrency: 'CNY' }] : []),
-    ...(Number.isFinite(number) ? [{ conversionRate: number }, { defaultSalePrice: number }, { stock: { is: { OR: [{ qty: number }, { availableQty: number }, { valuationQty: number }, { totalCost: number }] } } }] : []),
+    ...(Number.isFinite(number) ? [{ conversionRate: number }, { defaultSalePrice: number }, ...materialDimensionFields.map((field) => ({ [field]: number })), { modelUsages: { some: { quantityPerMachine: number } } }, { stock: { is: { OR: [{ qty: number }, { availableQty: number }, { valuationQty: number }, { totalCost: number }] } } }] : []),
     ...(date && !Number.isNaN(date.getTime()) ? [{ createdAt: { gte: date, lt: new Date(date.getTime() + 86_400_000) } }] : []),
   ] }) }))
   if (andFilters.length > 0) where.AND = andFilters
@@ -175,7 +193,7 @@ export async function listMaterials(query: MaterialListQuery) {
   return {
     data: materials.map((material) => {
       const image = primaryImageByMaterial.get(material.id)
-      return { ...material, primaryImage: image ? withMaterialImageUrls(image) : null }
+      return { ...withMaterialAttributes(material), primaryImage: image ? withMaterialImageUrls(image) : null }
     }),
     pagination: { page: query.page, pageSize: query.pageSize, total, totalPages: Math.ceil(total / query.pageSize) },
   }

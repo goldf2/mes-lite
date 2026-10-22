@@ -1,6 +1,6 @@
 {
   "name": "mes-lite",
-  "version": "0.1.503",
+  "version": "0.1.504",
   "private": true,
   "scripts": {
     "prepare:pdf-worker": "node scripts/copy-pdf-worker.mjs",
@@ -189,7 +189,8 @@
     "verify:real-workbench": "tsx scripts/verify-real-workbench.ts",
     "verify:task-collaboration": "tsx scripts/verify-task-collaboration-http.ts && tsx modules/attachments/__tests__/task-release-files.ts && tsx scripts/verify-task-collaboration-template.ts && tsx scripts/verify-task-file-references.ts && tsx scripts/verify-task-collaboration-client.ts",
     "verify:warehouse-packages": "tsx scripts/verify-warehouse-packages.ts",
-    "verify:warehouse-package-migration": "tsx scripts/verify-warehouse-package-migration.ts"
+    "verify:warehouse-package-migration": "tsx scripts/verify-warehouse-package-migration.ts",
+    "verify:material-import": "tsx scripts/verify-material-import.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.3",
@@ -200,6 +201,7 @@
     "@tiptap/react": "^3.29.2",
     "@tiptap/starter-kit": "^3.29.2",
     "@types/qrcode": "^1.5.6",
+    "exceljs": "^4.4.0",
     "jsbarcode": "^3.12.3",
     "lucide-react": "^1.27.0",
     "next": "14.2.0",

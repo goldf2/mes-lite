@@ -484,6 +484,35 @@ model Material {
   costingMethod               String                           @default("WEIGHTED_AVERAGE")
   defaultSalePrice            Float?
   salesCurrency               String                           @default("CNY")
+  materialKind                String                           @default("GENERAL")
+  defaultSourceMode           String?
+  drawingNo                   String?
+  currentMaterial             String?
+  materialJis                 String?
+  materialGb                  String?
+  drawingSize                 String?
+  feedCategory                String?
+  feedSpec                    String?
+  feedMethod                  String?
+  heatTreatmentProcess        String?
+  heatTreatment               Boolean?
+  heatTreatmentConfirmed      Boolean?
+  machiningProcess            String?
+  grossWeightText             String?
+  finishedLength              Float?
+  blankLength                 Float?
+  finishedWidth               Float?
+  blankWidth                  Float?
+  finishedThickness           Float?
+  blankThickness              Float?
+  finishedInnerDiameter       Float?
+  blankInnerDiameter          Float?
+  finishedOuterDiameter       Float?
+  blankOuterDiameter          Float?
+  finishedHeight              Float?
+  blankHeight                 Float?
+  purposes                    MaterialPurpose[]
+  modelUsages                 MaterialModelUsage[]
   deletedAt                   DateTime?
   deletedBy                   String?
   stock                       Stock?
@@ -512,6 +541,30 @@ model Material {
   maintenanceSpareUsages      EquipmentMaintenanceSpareUsage[]
   qualityInspectionStandards  QualityInspectionStandard[]
   createdAt                   DateTime                         @default(now())
+
+  @@index([drawingNo])
+  @@index([materialKind])
+}
+
+model MaterialPurpose {
+  materialId  String
+  material    Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  purposeCode String
+
+  @@id([materialId, purposeCode])
+  @@index([purposeCode])
+}
+
+model MaterialModelUsage {
+  id                 String   @id @default(cuid())
+  materialId         String
+  material           Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  modelCode          String
+  assemblyName       String   @default("")
+  quantityPerMachine Float?
+
+  @@unique([materialId, modelCode, assemblyName])
+  @@index([modelCode])
 }
 
 // ==================== 物料清单 BOM ====================

@@ -7,6 +7,7 @@ const checks = [
   'verify:structural-goal',
   'verify:architecture-baseline',
   'verify:model-convergence',
+  'verify:material-import',
   'verify:product-material-migration',
   'verify:stock-owner-invariant',
   'verify:daily-inventory-count',

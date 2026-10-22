@@ -8,6 +8,7 @@ const apiRoot = path.resolve(process.cwd(), 'app/api')
 const transactionalAuditRequired = new Set([
   'auth/register/route.ts#POST',
   'costs/route.ts#POST',
+  'materials/import/route.ts#POST',
   'dispatches/[id]/cancel/route.ts#PATCH',
   'dispatches/[id]/complete/route.ts#PATCH',
   'dispatches/[id]/dispatch/route.ts#PATCH',

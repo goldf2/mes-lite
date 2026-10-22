@@ -7,6 +7,7 @@ import ModalDialog from '@/app/components/ModalDialog'
 import type { Material, MaterialReference } from '../contracts'
 import { materialCategoryLabels, primaryMeasureLabels } from '../model/material-options'
 import useMaterialDetail from './useMaterialDetail'
+import { MaterialEngineeringDetails } from './MaterialEngineeringFields'
 
 export default function MaterialDetailDialog({
   material,
@@ -80,7 +81,7 @@ export default function MaterialDetailDialog({
             <p className="mt-2 text-sm text-gray-600">规格：{detail.spec || '-'}</p>
             {detail.note && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">备注：{detail.note}</p>}
             <p className="mt-1 text-sm text-gray-600">分类：{materialCategoryLabels[detail.category || 'RAW'] || '其他'}</p>
-            <p className="mt-1 text-sm text-gray-600">归属客户：{detail.customer?.name || '通用/未绑定'}</p>
+            <p className="mt-1 text-sm text-gray-600">适用客户：{detail.customer?.name || '通用/未绑定'}</p>
           </div>
 
           <dl className="grid grid-cols-2 gap-y-4 border-b border-gray-200 py-5 sm:grid-cols-5">
@@ -149,6 +150,8 @@ export default function MaterialDetailDialog({
           </dl>
         </div>
       </div>
+
+      <MaterialEngineeringDetails material={detail} />
 
       <AttachmentPanel
         ownerType="MATERIAL"
