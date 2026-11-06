@@ -20,3 +20,8 @@ export type {
   DraftBomOutput,
   MaterialBom,
 } from './contracts'
+
+export { default as BomWorkspace } from './ui/BomWorkspace'
+export { bomSearchCatalog, bomAdvancedSearchFields } from './model/bom-search'
+export { default as BomWorkbenchPage } from './ui/BomWorkbenchPage'
+export * from './client/bom-page-preferences'

@@ -973,3 +973,13 @@ Git 只隔离代码和索引，不隔离运行资源。并行任务必须分别�
 ## v0.1.499 仓库装箱与标签组合
 
 仓库装箱与位置事实由 inventory 拥有；发货来源分摊由 sales 拥有，继续通过库存公开事务服务出库。库存页面通过渲染槽位由应用壳组合原有标签弹窗和附件面板，避免 inventory 与 operations-tools/attachments 双向依赖。通用扫码单据投影仍由 business-documents 读取持久化单据与库位范围，不反向调用库存页面或业务命令。唯一新增跨模块依赖为 operations-tools → inventory：打印任务调用库存公开标签版本服务，使用服务端固化内容，不信任浏览器自填箱签。依赖边预算由51调整到52；没有新增环、双向依赖或深导入，原有环白名单不变。
+
+
+## 2026-11-07 BOM 独立工作台（本地候选）
+
+基线 v0.1.503 / 9416019b；分支 feat/bom-workbench-20261107。使用同一仓库的独立入口、分支与数据库，仍复用 Next.js 和 Prisma Schema，并非独立发行包。
+
+- npm run bom:init 初始化隔离库 .runtime/bom-workbench/development.db、开发账号与示例配方；npm run bom:dev 启动 http://127.0.0.1:3107/bom-workbench。入口仅在 BOM_WORKBENCH_ENABLED=1 时开放，继续使用原认证和 API 权限。
+- modules/bom 拥有工作区、搜索配置和偏好；materials 保留兼容转发。新协调页不依赖 MaterialPage，复用公共按钮、搜索、筛选、工具栏和原 BOM 编辑器/生命周期服务。物料主数据通过既有物料页维护。
+- 增加未保存切换/离页提醒、加载失败反馈和重试；不改变 Schema、API、权限资源或生产库存逻辑。成本和工艺暂留原入口。
+- 本轮不合并、不推送、不部署。完成迭代后同步最新主线、验收生产引用兼容性、递增版本，并按精确候选 CI 门禁合并。

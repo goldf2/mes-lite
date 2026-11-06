@@ -189,7 +189,9 @@
     "verify:real-workbench": "tsx scripts/verify-real-workbench.ts",
     "verify:task-collaboration": "tsx scripts/verify-task-collaboration-http.ts && tsx modules/attachments/__tests__/task-release-files.ts && tsx scripts/verify-task-collaboration-template.ts && tsx scripts/verify-task-file-references.ts && tsx scripts/verify-task-collaboration-client.ts",
     "verify:warehouse-packages": "tsx scripts/verify-warehouse-packages.ts",
-    "verify:warehouse-package-migration": "tsx scripts/verify-warehouse-package-migration.ts"
+    "verify:warehouse-package-migration": "tsx scripts/verify-warehouse-package-migration.ts",
+    "bom:init": "node scripts/bom-workbench.mjs init",
+    "bom:dev": "node scripts/bom-workbench.mjs dev"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.3",
