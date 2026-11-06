@@ -9,8 +9,8 @@ import { getSystemSettings } from '@/lib/system-settings'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'MES-lite 工厂生产系统',
-  description: '机械配件工厂生产全流程记录系统',
+  title: process.env.BOM_WORKBENCH_ENABLED === '1' ? 'BOM 工作台' : 'MES-lite 工厂生产系统',
+  description: process.env.BOM_WORKBENCH_ENABLED === '1' ? 'BOM 配方、投入产出与版本管理' : '机械配件工厂生产全流程记录系统',
 }
 
 export const viewport: Viewport = {

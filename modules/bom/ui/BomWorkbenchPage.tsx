@@ -13,9 +13,9 @@ import { bomMaterialIdOfProduct } from '../model/bom-material'
 import { bomAdvancedSearchFields, bomSearchCatalog } from '../model/bom-search'
 import BomWorkspace from './BomWorkspace'
 import useBomDraftController from './useBomDraftController'
-import { loadConfiguredUnits } from '@/modules/configuration'
 
-export default function BomWorkbenchPage({ onMessage, canCreate = false, canUpdate = false, canDelete = false }: {
+export default function BomWorkbenchPage({ loadUnits, onMessage, canCreate = false, canUpdate = false, canDelete = false }: {
+  loadUnits: () => Promise<BomUnitCatalogItem[]>
   onMessage: (message: string) => void
   canCreate?: boolean
   canUpdate?: boolean
@@ -29,6 +29,7 @@ export default function BomWorkbenchPage({ onMessage, canCreate = false, canUpda
   const [keyword, setKeyword] = useState('')
   const [conditions, setConditions] = useState<ResourceSearchCondition[]>([])
   const [preferences] = useBomPagePreferences()
+  const initialized = useRef(false)
   const afterSave = useRef<(id?: string) => Promise<void>>()
   const onAfterSave = useCallback(async (id?: string) => { await afterSave.current?.(id) }, [])
   const controller = useBomDraftController({ products, materialOptions: materials, unitCatalog: units,
@@ -38,10 +39,15 @@ export default function BomWorkbenchPage({ onMessage, canCreate = false, canUpda
     setLoading(true)
     setError('')
     try {
-      const [result, catalog] = await Promise.all([listBoms(), loadConfiguredUnits()])
+      const [result, catalog] = await Promise.all([listBoms(), loadUnits()])
       setProducts(result.products)
       setMaterials(result.materialOptions)
       setUnits(catalog)
+      if (!initialized.current) {
+        initialized.current = true
+        const owner = result.products.find(product => product.boms.length > 0)
+        if (owner && !preferredId) selectExistingBom(bomMaterialIdOfProduct(owner), owner.boms[0].id)
+      }
       if (preferredId) {
         const owner = result.products.find(product => product.boms.some(bom => bom.id === preferredId))
         if (owner) selectExistingBom(bomMaterialIdOfProduct(owner), preferredId)
@@ -51,7 +57,7 @@ export default function BomWorkbenchPage({ onMessage, canCreate = false, canUpda
       setError(message)
       onMessage(message)
     } finally { setLoading(false) }
-  }, [onMessage, selectExistingBom])
+  }, [onMessage, selectExistingBom, loadUnits])
   useEffect(() => { afterSave.current = load; return () => { afterSave.current = undefined } }, [load])
   useEffect(() => { void load() }, [load])
   useEffect(() => {

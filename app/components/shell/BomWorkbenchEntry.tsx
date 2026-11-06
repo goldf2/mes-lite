@@ -3,7 +3,8 @@
 import { useCallback, useState } from 'react'
 import AuthGate, { type CurrentOperator } from '@/app/components/AuthGate'
 import AppButton from '@/app/components/AppButton'
-import BomWorkbenchPage from './BomWorkbenchPage'
+import { BomWorkbenchPage } from '@/modules/bom'
+import { loadConfiguredUnits } from '@/modules/configuration'
 
 function Workspace({ operator, onLogout }: { operator: CurrentOperator; onLogout: () => void }) {
   const [message, setMessage] = useState('')
@@ -17,7 +18,7 @@ function Workspace({ operator, onLogout }: { operator: CurrentOperator; onLogout
     </header>
     {message && <div role="status" className="flex items-center justify-between gap-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">{message}<AppButton size="sm" onClick={() => setMessage('')}>关闭</AppButton></div>}
     {admin || permission?.canRead
-      ? <BomWorkbenchPage onMessage={onMessage} canCreate={admin || !!permission?.canCreate} canUpdate={admin || !!permission?.canUpdate} canDelete={admin || !!permission?.canDelete} />
+      ? <BomWorkbenchPage loadUnits={loadConfiguredUnits} onMessage={onMessage} canCreate={admin || !!permission?.canCreate} canUpdate={admin || !!permission?.canUpdate} canDelete={admin || !!permission?.canDelete} />
       : <p role="alert">当前账号没有 BOM 查看权限。</p>}
   </main>
 }

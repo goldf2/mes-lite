@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import BomWorkbenchEntry from '@/modules/bom/ui/BomWorkbenchEntry'
+import BomWorkbenchEntry from '@/app/components/shell/BomWorkbenchEntry'
 
 export const dynamic = 'force-dynamic'
 
