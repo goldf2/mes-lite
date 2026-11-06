@@ -1,8 +1,6 @@
 {
-  "version": "0.1.505",
-  "impact": "updated",
-  "workflowIds": [
-    "06-bom-workspace"
-  ],
-  "summary": "新增可选独立 BOM 首页与隔离部署；505本地真实浏览器登录、自动选中配方、搜索空态与清除恢复通过。原生命周期不变；保留原MES入口截图并明确历史基线。独立域名部署待验证。"
+  "version": "0.1.506",
+  "impact": "none",
+  "workflowIds": [],
+  "summary": "仅修正505候选CI发现的架构文档模块文件数统计并递增候选版本；业务源码、SOP步骤及界面不变，沿用505已验证流程和Markdown。505未部署。"
 }
